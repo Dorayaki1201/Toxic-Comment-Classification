@@ -147,13 +147,15 @@ python app/app.py
 
 ## 9. Quy ước code
 
-- Python, type hints cho hàm công khai, docstring ngắn gọn bằng tiếng Việt hoặc tiếng Anh (thống nhất một kiểu).
+- Python, type hints cho hàm công khai, docstring ngắn gọn bằng tiếng Việt.
 - Tên biến, hàm, file bằng tiếng Anh; chú thích và README bằng tiếng Việt.
 - Hàm nhỏ, một việc; logic dùng lại phải nằm trong `src/`, không copy giữa notebook.
 - Mọi yếu tố ngẫu nhiên phải nhận `seed`. Gọi `set_seed()` ở đầu mỗi lần chạy.
 - Cấu hình thí nghiệm nằm trong `configs/`, không hard-code siêu tham số trong code.
 - Không commit: dữ liệu, checkpoint nặng, khóa API, token. Dùng `.gitignore` và biến môi trường / secrets của Spaces.
 - Commit nhỏ, thông điệp rõ (ví dụ `feat: add elongated-char normalizer`, `fix: leak of dev ids into train`).
+- **Không** thêm dòng `Co-Authored-By` hay chữ ký AI nào vào commit message hoặc mô tả Pull Request.
+- Quy trình Git: `main` luôn chạy được; mỗi phần lớn làm trên nhánh `feat/...`, merge vào `main` qua Pull Request; gắn tag ở mỗi mốc (`v0.1-baseline`...).
 - Viết test cho `normalize.py`, `noise.py`, `moderation.py` (các phần logic thuần, dễ test).
 
 ## 10. Quy tắc cho Claude khi hỗ trợ dự án này
