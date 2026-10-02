@@ -1,0 +1,13 @@
+# Thư viện cho tuần 1 (dữ liệu + baseline). Phiên bản sẽ được ghim chính xác sau khi cài.
+# Thư viện cho transformer (torch, transformers...) sẽ thêm ở tuần 2.
+numpy
+pandas
+scikit-learn
+pyyaml
+matplotlib
+datasets
+ipykernel
+
+# Công cụ phát triển
+ruff
+pytest

@@ -1,0 +1,16 @@
+[project]
+name = "toxic-vi"
+version = "0.1.0"
+description = "Phát hiện ngôn từ tiêu cực, thù ghét, tục tĩu trong bình luận tiếng Việt, bền trước teencode và biến thể lách kiểm duyệt"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/F: lỗi cơ bản, I: sắp xếp import, B: lỗi dễ gây bug, UP: cú pháp Python mới
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

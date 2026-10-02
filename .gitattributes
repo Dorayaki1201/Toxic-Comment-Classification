@@ -1,0 +1,5 @@
+# Chuẩn hóa xuống dòng về LF trong repo (code chạy cả trên Windows lẫn Kaggle/Colab Linux)
+* text=auto eol=lf
+*.ipynb text eol=lf
+*.png binary
+*.jpg binary
