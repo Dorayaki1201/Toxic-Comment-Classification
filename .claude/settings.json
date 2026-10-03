@@ -1,0 +1,18 @@
+{
+    "permissions": {
+        "allow": [
+            "PowerShell(.\\.venv\\Scripts\\ruff.exe *)",
+            "PowerShell(.\\.venv\\Scripts\\pytest.exe *)",
+            "PowerShell(git status*)",
+            "PowerShell(git diff*)",
+            "PowerShell(git log*)",
+            "PowerShell(git branch)",
+            "PowerShell(git fetch*)"
+        ],
+        "deny": [
+            "Read(./data/**)",
+            "PowerShell(git push --force*)",
+            "PowerShell(git reset --hard*)"
+        ]
+    }
+}
