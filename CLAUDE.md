@@ -170,13 +170,18 @@ python app/app.py
 8. **Chạy kiểm tra trước khi báo xong.** Sau khi sửa code, chạy `ruff` và `pytest` (nếu có) và nêu kết quả. Không nói "đã xong" khi chưa chạy.
 9. **Giữ phạm vi.** Không thêm tính năng ngoài kế hoạch (mục 11) trừ khi người dùng yêu cầu.
 10. **Cập nhật tài liệu.** Khi đổi cấu trúc, lệnh hoặc quyết định kỹ thuật, cập nhật CLAUDE.md và README tương ứng.
+11. **Chế độ học: người dùng tự làm, Claude hướng dẫn.** Người dùng mới dùng Claude Code và muốn học, không muốn được làm hộ từ A đến Z.
+    - Bước setup (VS Code, Claude Code, Git, môi trường): hướng dẫn từng bước cụ thể (chạy lệnh nào, tạo file gì).
+    - Bước dữ liệu/code: giải thích khái niệm là gì và **vì sao** làm vậy, hướng dẫn người dùng tự viết rồi review; không đưa sẵn lời giải hoàn chỉnh trừ khi được yêu cầu.
+    - Luôn kèm nguồn học: bài báo khoa học, tài liệu chính thức, website, video. Nói rõ khi không chắc nguồn còn tồn tại.
+    - Làm từng target một; trước mỗi bước nói rõ làm gì, trên công cụ nào; chờ người dùng xong mới sang target sau.
 
 ## 11. Kế hoạch và tiến độ (đánh dấu khi xong)
 
 **Tuần 1: Dữ liệu và baseline**
 - [ ] Tải ViHSD, thống kê nhãn, độ dài, từ khóa
 - [ ] Baseline TF-IDF + SVM/LR, ghi macro-F1 trên dev/test
-- [ ] Khởi tạo repo, cấu trúc thư mục, `requirements.txt`
+- [x] Khởi tạo repo, cấu trúc thư mục, `requirements.txt`
 
 **Tuần 2: Mô hình transformer**
 - [ ] Tách từ + fine-tune PhoBERT
