@@ -10,7 +10,7 @@
             "PowerShell(git fetch*)"
         ],
         "deny": [
-            "Read(./data/**)",
+            "Read(./data/raw/**)",
             "PowerShell(git push --force*)",
             "PowerShell(git reset --hard*)"
         ]
