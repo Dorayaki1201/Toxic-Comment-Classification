@@ -15,10 +15,10 @@ Tài liệu hướng dẫn cho Claude khi làm việc trong repo này. Đọc k�
 
 ## 2. Bài toán
 
-Phân loại một bình luận thành 3 nhãn:
+Phân loại một bình luận thành 3 nhãn (theo định nghĩa của ViHSD):
 - `CLEAN`: bình thường
-- `OFFENSIVE`: xúc phạm, nói bậy, thô tục
-- `HATE`: thù ghét nhắm vào nhóm người
+- `OFFENSIVE`: có từ thô tục nhưng không nhắm vào cá nhân hay nhóm cụ thể
+- `HATE`: công kích nhắm vào một cá nhân hoặc một nhóm người (có thể không chứa từ thô tục)
 
 **Phần nâng cao (điểm nhấn của dự án):** nhận diện và chuẩn hóa viết tắt, teencode, ký tự chèn, không dấu, ký tự kéo dài, rồi chứng minh bằng số liệu rằng hệ thống bền hơn trước các biến thể đó.
 
