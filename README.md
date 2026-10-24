@@ -29,6 +29,7 @@ pip install -r requirements.txt
 ## Cấu trúc thư mục
 
 ```
+docs/        kiến trúc hệ thống và sổ quyết định kỹ thuật
 data/        hướng dẫn tải dữ liệu (không commit dữ liệu)
 notebooks/   khám phá dữ liệu, thử nghiệm
 src/         mã nguồn chính
@@ -37,6 +38,8 @@ app/         demo Gradio
 tests/       kiểm thử đơn vị
 reports/     bảng kết quả, biểu đồ, phân tích lỗi
 ```
+
+Sơ đồ luồng dữ liệu và trạng thái từng module: [docs/architecture.md](docs/architecture.md). Lý do của các lựa chọn kỹ thuật: [docs/decisions.md](docs/decisions.md).
 
 ## Đạo đức và giới hạn
 
