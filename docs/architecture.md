@@ -1,0 +1,68 @@
+# Kiến trúc hệ thống
+
+Tài liệu này mô tả hệ thống gồm những khối nào, dữ liệu chảy qua chúng ra sao, và mỗi khối đang ở trạng thái nào. Cập nhật khi thêm hoặc đổi một module. Lý do của từng lựa chọn nằm ở [decisions.md](decisions.md).
+
+## 1. Luồng dữ liệu
+
+```mermaid
+flowchart LR
+    RAW["data/raw/vihsd/*.csv<br/>(không commit)"] --> DATA["src/data.py<br/>nạp + kiểm tra + xử lý dòng lỗi"]
+    DATA -->|train| NORM["src/normalize.py<br/>chuẩn hóa teencode"]
+    DATA -->|train| NOISE["src/noise.py<br/>sinh nhiễu"]
+    DATA -->|dev, test| EVAL["src/evaluate.py<br/>macro-F1, robustness,<br/>bias, cross-dataset"]
+    NORM --> TRAIN["src/models.py + src/train.py<br/>baseline, PhoBERT, ViSoBERT"]
+    NOISE -->|"tăng cường train (cấu hình D)"| TRAIN
+    DATA -->|"train (cấu hình A)"| TRAIN
+    TRAIN --> EVAL
+    NOISE -->|"bộ test nhiễu"| EVAL
+    EVAL --> REP["reports/<br/>bảng kết quả, phân tích lỗi"]
+    TRAIN --> APP["app/app.py<br/>Gradio demo"]
+    NORM --> APP
+    APP --> MOD["src/moderation.py<br/>cho đăng / làm mờ / chặn / hàng chờ"]
+    CFG["configs/*.yaml"] -.-> TRAIN
+    CFG -.-> EVAL
+    UTILS["src/utils.py<br/>seed, config, logging"] -.-> DATA
+    UTILS -.-> TRAIN
+```
+
+Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem bảng ở mục 2.
+
+## 2. Trạng thái từng module
+
+| Module | Vai trò | Trạng thái | Test |
+|---|---|---|---|
+| `src/utils.py` | `set_seed`, `load_config`, `get_logger` | ✅ xong | `tests/test_utils.py` |
+| `src/data.py` | nạp ViHSD, kiểm tra định dạng, xử lý dòng lỗi | ✅ xong | `tests/test_data.py` |
+| `src/normalize.py` | chuẩn hóa teencode, viết tắt, ký tự kéo dài/chèn | ⬜ tuần 3 | |
+| `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
+| `src/models.py`, `src/train.py` | baseline TF-IDF, PhoBERT, ViSoBERT | ⬜ tuần 1–2 | |
+| `src/evaluate.py` | macro-F1, F1 từng lớp, test nhiễu, bias, cross-dataset | ⬜ | |
+| `src/moderation.py` | logic xử lý sau phân loại | ⬜ tuần 7 | |
+| `app/app.py` | Gradio demo | ⬜ tuần 7 | |
+
+## 3. Giao diện của các module đã có
+
+### `src/data.py`
+
+```
+read_split(split, data_dir)   -> DataFrame   # đọc nguyên trạng + kiểm tra; sai thì ValueError
+find_invalid_rows(df)         -> Series[bool] # True ở dòng rỗng / chỉ khoảng trắng / "#ERROR!"
+clean_split(df, drop_invalid) -> DataFrame   # bản sao: bỏ dòng lỗi, hoặc thay text lỗi bằng ""
+load_vihsd(split, data_dir)   -> DataFrame   # cửa vào chính = read_split + clean_split + log
+```
+
+- **Đầu ra** luôn có 2 cột `free_text` (chuỗi, không có NaN) và `label_id` (0 = CLEAN, 1 = OFFENSIVE, 2 = HATE).
+- **Số dòng sau khi nạp** (đo ngày 08/10/2026): train 24036, dev 2672, test 6680.
+- **Không làm:** không sửa nội dung bình luận (viết thường, bỏ dấu, teencode). Việc đó thuộc `normalize.py`.
+
+## 4. Ranh giới dữ liệu (chống rò rỉ)
+
+| Việc | Được dùng | Không được dùng |
+|---|---|---|
+| Xây từ điển teencode, thống kê từ khóa | train | dev, test |
+| Sinh nhiễu để tăng cường (cấu hình D) | train | dev, test |
+| Chọn siêu tham số, chọn mô hình | dev | test |
+| Tạo bộ test nhiễu | test (chỉ để đánh giá) | |
+| Báo cáo kết quả cuối | test, chạy một lần | |
+
+Mọi module mới phải ghi rõ nó dùng tập nào, và test phải kiểm tra được điều đó nếu khả thi.

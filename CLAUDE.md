@@ -90,6 +90,9 @@ du-an-toxic-vi/
 ├── README.md              # mô tả, kết quả, cách chạy, ảnh demo
 ├── requirements.txt
 ├── pyproject.toml         # cấu hình ruff/pytest
+├── docs/
+│   ├── architecture.md    # sơ đồ hệ thống, luồng dữ liệu, trạng thái từng module
+│   └── decisions.md       # sổ quyết định kỹ thuật: bối cảnh, lựa chọn, lý do, đánh đổi
 ├── data/
 │   └── README.md          # hướng dẫn tải dữ liệu, giấy phép (không commit dữ liệu)
 ├── notebooks/             # khám phá dữ liệu, thử nghiệm (đánh số 01_, 02_...)
@@ -169,12 +172,15 @@ python app/app.py
 7. **Dữ liệu nhạy cảm.** Nội dung thô tục/thù ghét chỉ dùng ở mức cần thiết cho nhiệm vụ. Không tạo thêm nội dung thù ghét mới ngoài mục đích kiểm thử/sinh nhiễu có kiểm soát; trong README và báo cáo, tránh trích nguyên văn khi không cần.
 8. **Chạy kiểm tra trước khi báo xong.** Sau khi sửa code, chạy `ruff` và `pytest` (nếu có) và nêu kết quả. Không nói "đã xong" khi chưa chạy.
 9. **Giữ phạm vi.** Không thêm tính năng ngoài kế hoạch (mục 11) trừ khi người dùng yêu cầu.
-10. **Cập nhật tài liệu.** Khi đổi cấu trúc, lệnh hoặc quyết định kỹ thuật, cập nhật CLAUDE.md và README tương ứng.
-11. **Chế độ học: người dùng tự làm, Claude hướng dẫn.** Người dùng mới dùng Claude Code và muốn học, không muốn được làm hộ từ A đến Z.
-    - Bước setup (VS Code, Claude Code, Git, môi trường): hướng dẫn từng bước cụ thể (chạy lệnh nào, tạo file gì).
-    - Bước dữ liệu/code: giải thích khái niệm là gì và **vì sao** làm vậy, hướng dẫn người dùng tự viết rồi review; không đưa sẵn lời giải hoàn chỉnh trừ khi được yêu cầu.
-    - Luôn kèm nguồn học: bài báo khoa học, tài liệu chính thức, website, video. Nói rõ khi không chắc nguồn còn tồn tại.
-    - Làm từng target một; trước mỗi bước nói rõ làm gì, trên công cụ nào; chờ người dùng xong mới sang target sau.
+10. **Cập nhật tài liệu.** Khi đổi cấu trúc, lệnh hoặc quyết định kỹ thuật, cập nhật CLAUDE.md, README, `docs/architecture.md` và `docs/decisions.md` tương ứng.
+11. **Chế độ làm việc: Claude viết code, người dùng thiết kế và kiểm soát hệ thống** (áp dụng từ 24/10/2026; trước đó người dùng tự viết code). Mục tiêu của người dùng là hiểu và quản trị được hệ thống, không phải gõ từng dòng. Mỗi phần việc đi qua 5 bước:
+    1. **Thiết kế (trước khi code, chờ người dùng duyệt):** mục tiêu, vị trí trong hệ thống (nhận gì từ đâu, đưa cho ai), giao diện vào/ra, quyết định thiết kế kèm lý do và phương án đã bỏ, rủi ro (rò rỉ dữ liệu, sai số liệu, không tái lập được).
+    2. **Thực hiện:** Claude viết code và test, chạy `ruff` + `pytest`; với logic quan trọng thì thử phá code để chắc test bắt được lỗi.
+    3. **Giải thích theo tầng:** luồng chạy chính, điểm dễ sai, câu hỏi phỏng vấn có thể gặp; kèm nguồn học (bài báo, tài liệu chính thức), nói rõ khi không chắc nguồn còn tồn tại.
+    4. **Kiểm soát:** Claude đặt 2–3 câu hỏi kiểm tra hiểu; người dùng đọc diff, tự chạy lệnh kiểm tra, tự commit/push theo lệnh Claude đưa; Claude kiểm tra lại bằng lệnh git chỉ đọc.
+    5. **Ghi lại:** cập nhật `docs/architecture.md` khi kiến trúc đổi, thêm mục vào `docs/decisions.md` khi có quyết định kỹ thuật mới.
+    - Bước setup (VS Code, Git, môi trường): vẫn hướng dẫn từng bước cụ thể (chạy lệnh nào, tạo file gì).
+    - Làm từng target một; chờ người dùng xong mới sang target sau.
 
 ## 11. Kế hoạch và tiến độ (đánh dấu khi xong)
 
