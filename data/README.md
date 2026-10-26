@@ -125,6 +125,35 @@ Tổng 33400 dòng và số lượng từng nhãn khớp với bài báo. Tỷ l
 
 Đây là số **từ**, không phải số token. Số token của PhoBERT/ViSoBERT sẽ lớn hơn và cần đo lại bằng tokenizer thật trước khi chọn `max_length`.
 
+### Từ khóa đặc trưng theo nhãn
+
+Đo bằng [notebooks/02_keywords_vihsd.ipynb](../notebooks/02_keywords_vihsd.ipynb) ngày 26/10/2026, **chỉ trên train** (24036 dòng sau khi bỏ dòng lỗi). Phương pháp: z-score log-odds có prior Dirichlet (Monroe et al., 2008), `prior_strength = 1000`, `min_count = 5`; mỗi token đếm tối đa 1 lần trong một bình luận; token = âm tiết viết thường (chuẩn hóa NFC), bỏ dấu câu và emoji. Lý do các lựa chọn: [docs/decisions.md](../docs/decisions.md) D-007 đến D-009. Mục này không trích nguyên văn từ thô tục.
+
+| Loại | Nhãn | Số token xét | z > 1.96 | z > 5 | z lớn nhất |
+|---|---|---|---|---|---|
+| âm tiết | CLEAN | 3465 | 310 | 43 | 13.35 |
+| âm tiết | OFFENSIVE | 3465 | 297 | 37 | 18.95 |
+| âm tiết | HATE | 3465 | 484 | 80 | 19.42 |
+| bigram | CLEAN | 7299 | 124 | 4 | 7.21 |
+| bigram | OFFENSIVE | 7299 | 390 | 16 | 6.97 |
+| bigram | HATE | 7299 | 759 | 24 | 8.90 |
+
+**Nhận xét (dựa trên top 30 token theo z mỗi nhãn):**
+
+- **Tần suất thô không phân biệt được nhãn.** Top tần suất của cả 3 nhãn đều là từ chức năng ("là", "có", "mà", "thì"...). Log-odds cho top khác hẳn nhau giữa các nhãn.
+- **CLEAN:** từ xưng hô lịch sự và tiểu từ thân mật ("anh", "em", "cô", "thầy", "ơi", "ạ", "nha"), từ khen ngợi ("đẹp", "thuyết phục", "dễ thương"), và **nhiều tên người** (họ phổ biến, tên nhân vật/kênh cụ thể).
+- **OFFENSIVE:** gần như toàn bộ là từ chửi thề. **14/30 token là dạng viết tắt** (cụm 1–4 phụ âm), và cùng một từ gốc xuất hiện dưới nhiều dạng: viết đủ, viết tắt 2 chữ, viết tắt 3–4 chữ, viết tắt có và không có dấu "đ".
+- **HATE:** khác OFFENSIVE ở **từ chỉ đối tượng**: đại từ ngôi thứ hai và từ chỉ người mang sắc thái coi thường, so sánh với con vật, công kích trí tuệ, và **từ chỉ nhóm người** (chính trị, vùng miền, quốc gia, "ad"/quản trị viên). Từ chửi thề cũng có mặt nhưng z thấp hơn ở OFFENSIVE. Điều này khớp với định nghĩa nhãn: HATE có đối tượng bị nhắm tới.
+- HATE có nhiều token đặc trưng nhất (484 âm tiết z > 1.96) dù ít bình luận hơn CLEAN gấp gần 8 lần.
+
+**Hệ quả cho các bước sau:**
+
+- **Chuẩn hóa (tuần 3):** từ điển teencode cần gom các dạng viết tắt của cùng một từ gốc về một dạng; danh sách token OFFENSIVE/HATE có z cao là điểm khởi đầu để duyệt thủ công (chỉ từ train).
+- **Kiểm tra thiên lệch (tuần 6):** từ chỉ nhóm người có z cao ở HATE, nên mô hình có nguy cơ gán HATE oan cho câu trung tính chỉ nhắc đến nhóm đó. Bộ câu mẫu trung tính phải chứa các nhóm này.
+- **Tương quan giả:** tên người và tên kênh có z cao ở CLEAN phản ánh *nguồn* bình luận, không phải ngôn từ; mô hình có thể học "tên này → CLEAN". Cần xem lại khi phân tích lỗi.
+
+**Hạn chế:** z cao chỉ cho thấy token *đi kèm* nhãn, không *gây ra* nhãn. Ngưỡng 1.96 (khoảng 5% do ngẫu nhiên) áp cho từng token riêng lẻ; vì kiểm tra hàng nghìn token cùng lúc (so sánh bội), nên ngay cả khi không token nào thật sự đặc trưng vẫn có khoảng 5% × 3465 ≈ 170 âm tiết vượt 1.96 do ngẫu nhiên. Cột `z > 1.96` vì vậy chứa nhiều nhiễu; cột `z > 5` đáng tin hơn. Âm tiết đơn lẻ có thể nhập nhằng ("con", "cái" vừa là loại từ vừa là thành phần chửi). Bigram có thể ghép qua dấu câu. Emoji và chữ bị chèn ký tự không được phân tích. `prior_strength` chưa được dò.
+
 ### Kết quả tham chiếu từ bài báo
 
 Mô hình tốt nhất tác giả báo cáo là mBERT (`bert-base-multilingual-cased`): accuracy 86.88%, macro-F1 62.69% trên tập test. Đây là số của bài báo, chưa phải kết quả của dự án này.
@@ -152,7 +181,8 @@ Mô hình tốt nhất tác giả báo cáo là mBERT (`bert-base-multilingual-c
 
 - Train có 2 dòng `free_text` rỗng; dev và test không có.
 - Có những dòng mà nội dung chỉ là chuỗi `#ERROR!` (train: 10 dòng, test: 4 dòng; dev: 3 dòng). Nhiều khả năng đây là lỗi bảng tính làm mất nội dung gốc; nguyên nhân chưa được xác nhận.
-- TODO: quyết định cách xử lý các dòng này trong `src/data.py`. Với test thì giữ nguyên.
+- Không có biến thể khác (khoảng trắng thừa, viết thường, có chữ đi kèm): đã kiểm tra ngày 06/10/2026.
+- **Cách xử lý** (`src/data.py`, xem [docs/decisions.md](../docs/decisions.md) D-004): train bỏ 12 dòng lỗi, còn 24036 dòng (CLEAN 19877, OFFENSIVE 1604, HATE 2555); dev và test giữ đủ 2672 và 6680 dòng, text của dòng lỗi được thay bằng chuỗi rỗng.
 
 **Đặc điểm ngôn ngữ.** Mẫu đọc thử có nhiều viết tắt, teencode, chữ không dấu và ký tự kéo dài. Đây là lý do dự án cần phần chuẩn hóa văn bản.
 

@@ -53,3 +53,27 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Quyết định:** test dùng bảng hoặc CSV nhỏ tự tạo trong thư mục tạm của pytest, chỉ chứa câu trung tính. Giá trị cần kiểm tra (như `"#ERROR!"`) được gõ thẳng trong test, không import hằng số từ code.
 - **Lý do:** test chạy được ở mọi nơi. Gõ thẳng giá trị giúp bắt lỗi khi chính hằng số trong code bị sai.
 - **Đánh đổi:** test không bắt được thay đổi của dữ liệu thật. Phần đó được kiểm tra bằng log số dòng khi nạp (24036 / 2672 / 6680).
+
+## D-007. Thống kê từ khóa nằm trong module riêng `src/keywords.py`
+
+- **Ngày:** 24/10/2026
+- **Bối cảnh:** kế hoạch ban đầu đặt hàm thống kê trong `src/data.py`.
+- **Quyết định:** tách thành `src/keywords.py`.
+- **Lý do:** `data.py` là cửa vào dữ liệu; thống kê từ khóa là phân tích. Tuần 3 (từ điển teencode) và tuần 6 (từ lóng mới) sẽ dùng lại module này.
+- **Đánh đổi:** thêm một file. Phương án bỏ: gộp vào `data.py`, khiến một module gánh hai vai trò.
+
+## D-008. Phương pháp: log-odds có prior Dirichlet, đếm theo số bình luận
+
+- **Ngày:** 24/10/2026
+- **Bối cảnh:** tần suất thô cho top giống nhau ở mọi nhãn (từ phổ biến); tỷ lệ thô thì đẩy từ hiếm lên đầu. Ngoài ra có bình luận lặp một từ nhiều lần.
+- **Quyết định:** dùng z-score log-odds với prior lấy theo tần suất chung (Monroe et al., 2008), tổng độ lớn prior `prior_strength = 1000`, bỏ token xuất hiện dưới `min_count = 5`. Mỗi token đếm tối đa 1 lần trong một bình luận.
+- **Lý do:** z-score phạt token hiếm qua phương sai, nên không cần ngưỡng tùy tiện. Đếm theo bình luận bền trước spam và dễ diễn giải ("X% bình luận chứa token").
+- **Đánh đổi:** đếm theo bình luận lệch khỏi giả định multinomial của bài báo gốc (một biến thể thực dụng). Giá trị `prior_strength` là lựa chọn, chưa dò; z-score chỉ cho thấy token *đi kèm* nhãn, không phải *gây ra* nhãn.
+
+## D-009. Token là âm tiết, có thêm bigram
+
+- **Ngày:** 24/10/2026
+- **Bối cảnh:** từ tiếng Việt thường gồm nhiều âm tiết; tách theo khoảng trắng chỉ ra âm tiết.
+- **Quyết định:** phân tích riêng hai bảng: âm tiết (unigram) và bigram (2 âm tiết liền nhau). Chuẩn hóa Unicode NFC và viết thường trước khi tách; bỏ dấu câu, emoji.
+- **Lý do:** bigram bắt được nhiều từ ghép mà không cần công cụ tách từ (để tuần 2). NFC để cùng một chữ có dấu không bị tách khác nhau tùy cách gõ.
+- **Đánh đổi:** bigram có thể ghép qua dấu câu (cặp vô nghĩa, phần lớn bị `min_count` lọc). Mất thông tin từ emoji và từ bị chèn ký tự (ví dụ chữ có dấu chấm xen giữa bị tách thành nhiều mảnh).
