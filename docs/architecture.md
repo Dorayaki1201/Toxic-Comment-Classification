@@ -7,6 +7,8 @@ Tài liệu này mô tả hệ thống gồm những khối nào, dữ liệu ch
 ```mermaid
 flowchart LR
     RAW["data/raw/vihsd/*.csv<br/>(không commit)"] --> DATA["src/data.py<br/>nạp + kiểm tra + xử lý dòng lỗi"]
+    DATA -->|train| KW["src/keywords.py<br/>token đặc trưng theo nhãn"]
+    KW -.->|"gợi ý từ điển teencode"| NORM
     DATA -->|train| NORM["src/normalize.py<br/>chuẩn hóa teencode"]
     DATA -->|train| NOISE["src/noise.py<br/>sinh nhiễu"]
     DATA -->|dev, test| EVAL["src/evaluate.py<br/>macro-F1, robustness,<br/>bias, cross-dataset"]
@@ -33,6 +35,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 |---|---|---|---|
 | `src/utils.py` | `set_seed`, `load_config`, `get_logger` | ✅ xong | `tests/test_utils.py` |
 | `src/data.py` | nạp ViHSD, kiểm tra định dạng, xử lý dòng lỗi | ✅ xong | `tests/test_data.py` |
+| `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds | ✅ xong (kết quả: `data/README.md` mục 7) | `tests/test_keywords.py` |
 | `src/normalize.py` | chuẩn hóa teencode, viết tắt, ký tự kéo dài/chèn | ⬜ tuần 3 | |
 | `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
 | `src/models.py`, `src/train.py` | baseline TF-IDF, PhoBERT, ViSoBERT | ⬜ tuần 1–2 | |
@@ -54,6 +57,18 @@ load_vihsd(split, data_dir)   -> DataFrame   # cửa vào chính = read_split + 
 - **Đầu ra** luôn có 2 cột `free_text` (chuỗi, không có NaN) và `label_id` (0 = CLEAN, 1 = OFFENSIVE, 2 = HATE).
 - **Số dòng sau khi nạp** (đo ngày 08/10/2026): train 24036, dev 2672, test 6680.
 - **Không làm:** không sửa nội dung bình luận (viết thường, bỏ dấu, teencode). Việc đó thuộc `normalize.py`.
+
+### `src/keywords.py`
+
+```
+tokenize(text)                              -> list[str]          # NFC + viết thường, tách âm tiết, bỏ dấu câu/emoji
+extract_ngrams(text, n)                     -> list[str]          # n âm tiết liền nhau
+count_tokens_by_label(df, n)                -> dict[int, Counter] # số bình luận chứa n-gram, theo nhãn
+log_odds_by_label(counts, prior_strength, min_count) -> DataFrame # label, token, count, count_rest, z
+```
+
+- **Đầu vào:** chỉ tập train từ `load_vihsd("train")`.
+- **Tách token chỉ dùng cho phân tích**, không đưa vào mô hình (không mâu thuẫn D-005).
 
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 

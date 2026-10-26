@@ -98,6 +98,7 @@ du-an-toxic-vi/
 ├── notebooks/             # khám phá dữ liệu, thử nghiệm (đánh số 01_, 02_...)
 ├── src/
 │   ├── data.py            # nạp, chia, tiền xử lý dữ liệu
+│   ├── keywords.py        # token đặc trưng theo nhãn (log-odds), chỉ dùng train
 │   ├── normalize.py       # chuẩn hóa teencode/viết tắt
 │   ├── noise.py           # sinh nhiễu
 │   ├── models.py          # baseline + transformer
@@ -157,8 +158,8 @@ python app/app.py
 - Cấu hình thí nghiệm nằm trong `configs/`, không hard-code siêu tham số trong code.
 - Không commit: dữ liệu, checkpoint nặng, khóa API, token. Dùng `.gitignore` và biến môi trường / secrets của Spaces.
 - Commit nhỏ, thông điệp rõ (ví dụ `feat: add elongated-char normalizer`, `fix: leak of dev ids into train`).
-- **Không** thêm dòng `Co-Authored-By` hay chữ ký AI nào vào commit message hoặc mô tả Pull Request.
-- Quy trình Git: `main` luôn chạy được; mỗi phần lớn làm trên nhánh `feat/...`, merge vào `main` qua Pull Request; gắn tag ở mỗi mốc (`v0.1-baseline`...).
+- **Không** thêm dòng `Co-Authored-By` hay chữ ký AI nào vào commit message.
+- Quy trình Git (từ 24/10/2026, không dùng Pull Request vì chỉ một người làm): `main` luôn chạy được; mỗi phần lớn làm trên nhánh `feat/...`; xong thì chạy `ruff` + `pytest`, rồi merge ở máy bằng `git merge --no-ff` vào `main`, push `main`, xóa nhánh; gắn tag ở mỗi mốc (`v0.1-baseline`...).
 - Viết test cho `normalize.py`, `noise.py`, `moderation.py` (các phần logic thuần, dễ test).
 
 ## 10. Quy tắc cho Claude khi hỗ trợ dự án này
@@ -185,7 +186,7 @@ python app/app.py
 ## 11. Kế hoạch và tiến độ (đánh dấu khi xong)
 
 **Tuần 1: Dữ liệu và baseline**
-- [ ] Tải ViHSD, thống kê nhãn, độ dài, từ khóa
+- [x] Tải ViHSD, thống kê nhãn, độ dài, từ khóa
 - [ ] Baseline TF-IDF + SVM/LR, ghi macro-F1 trên dev/test
 - [x] Khởi tạo repo, cấu trúc thư mục, `requirements.txt`
 
