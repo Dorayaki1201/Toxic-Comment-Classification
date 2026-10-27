@@ -1,0 +1,50 @@
+{
+  "macro_f1": 0.6430861629001986,
+  "accuracy": 0.8396706586826347,
+  "per_class": {
+    "CLEAN": {
+      "precision": 0.95252857973261,
+      "recall": 0.886085075702956,
+      "f1": 0.9181062657577739,
+      "support": 5548
+    },
+    "OFFENSIVE": {
+      "precision": 0.38998211091234347,
+      "recall": 0.49099099099099097,
+      "f1": 0.43469591226321036,
+      "support": 444
+    },
+    "HATE": {
+      "precision": 0.4947916666666667,
+      "recall": 0.690406976744186,
+      "f1": 0.5764563106796117,
+      "support": 688
+    }
+  },
+  "confusion_matrix": [
+    [
+      4916,
+      254,
+      378
+    ],
+    [
+      119,
+      218,
+      107
+    ],
+    [
+      126,
+      87,
+      475
+    ]
+  ],
+  "labels": [
+    "CLEAN",
+    "OFFENSIVE",
+    "HATE"
+  ],
+  "config": "tfidf_lr_wordchar_balanced",
+  "split": "test",
+  "rows": 6680,
+  "sklearn_version": "1.9.1"
+}

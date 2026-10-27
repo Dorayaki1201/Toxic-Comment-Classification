@@ -1,0 +1,14 @@
+# Baseline TF-IDF + Logistic Regression (cấu hình A: không chuẩn hóa teencode).
+# Chạy: python -m src.train --config configs/tfidf_lr_word_balanced.yaml
+name: tfidf_lr_word_balanced
+seed: 42
+data_dir: data/raw/vihsd
+
+features:
+  word: {ngram_range: [1, 2], min_df: 2, sublinear_tf: true}
+  char: null
+
+model:
+  C: 1.0
+  class_weight: balanced
+  max_iter: 1000
