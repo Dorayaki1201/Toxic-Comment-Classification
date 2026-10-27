@@ -38,8 +38,8 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds | ✅ xong (kết quả: `data/README.md` mục 7) | `tests/test_keywords.py` |
 | `src/normalize.py` | chuẩn hóa teencode, viết tắt, ký tự kéo dài/chèn | ⬜ tuần 3 | |
 | `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
-| `src/models.py`, `src/train.py` | baseline TF-IDF, PhoBERT, ViSoBERT | ⬜ tuần 1–2 | |
-| `src/evaluate.py` | macro-F1, F1 từng lớp, test nhiễu, bias, cross-dataset | ⬜ | |
+| `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); PhoBERT, ViSoBERT (⬜ tuần 2) | 🟡 | `tests/test_models.py` |
+| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix (✅); test nhiễu, bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
 | `src/moderation.py` | logic xử lý sau phân loại | ⬜ tuần 7 | |
 | `app/app.py` | Gradio demo | ⬜ tuần 7 | |
 
@@ -69,6 +69,20 @@ log_odds_by_label(counts, prior_strength, min_count) -> DataFrame # label, token
 
 - **Đầu vào:** chỉ tập train từ `load_vihsd("train")`.
 - **Tách token chỉ dùng cho phân tích**, không đưa vào mô hình (không mâu thuẫn D-005).
+
+### `src/models.py`, `src/train.py`, `src/evaluate.py` (baseline)
+
+```
+build_tfidf_lr(features, model, seed) -> Pipeline      # TF-IDF word/char -> LogisticRegression
+top_features(pipeline, label, k)      -> DataFrame     # trọng số lớn nhất mỗi nhãn, để kiểm tra mô hình học gì
+compute_metrics(y_true, y_pred)       -> dict          # macro-F1, accuracy, P/R/F1 từng lớp, confusion matrix
+python -m src.train --config configs/X.yaml            # fit train, đo train + dev + "luôn đoán CLEAN"
+                                                       #   -> models/X.joblib (không commit), reports/X/dev_metrics.json
+python -m src.evaluate --config configs/X.yaml --split test   # chỉ chạy 1 lần -> reports/X/test_metrics.json
+```
+
+- Mỗi lần chạy được xác định hoàn toàn bởi một file trong `configs/`; báo cáo lưu lại cả nội dung config và phiên bản scikit-learn.
+- `train.py` **không bao giờ** đọc test; chỉ `evaluate.py --split test` làm việc đó, và in cảnh báo.
 
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 

@@ -77,3 +77,35 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Quyết định:** phân tích riêng hai bảng: âm tiết (unigram) và bigram (2 âm tiết liền nhau). Chuẩn hóa Unicode NFC và viết thường trước khi tách; bỏ dấu câu, emoji.
 - **Lý do:** bigram bắt được nhiều từ ghép mà không cần công cụ tách từ (để tuần 2). NFC để cùng một chữ có dấu không bị tách khác nhau tùy cách gõ.
 - **Đánh đổi:** bigram có thể ghép qua dấu câu (cặp vô nghĩa, phần lớn bị `min_count` lọc). Mất thông tin từ emoji và từ bị chèn ký tự (ví dụ chữ có dấu chấm xen giữa bị tách thành nhiều mảnh).
+
+## D-010. Baseline là Pipeline TF-IDF + Logistic Regression của scikit-learn
+
+- **Ngày:** 26/10/2026
+- **Bối cảnh:** cần một mô hình đơn giản, chạy nhanh trên CPU để làm mốc so sánh và kiểm tra cả quy trình trước khi dùng GPU.
+- **Quyết định:** gói TF-IDF và Logistic Regression trong một `Pipeline`; chọn Logistic Regression thay vì SVM tuyến tính.
+- **Lý do:** `Pipeline.fit(train)` bảo đảm từ điển và IDF chỉ học trên train, dev/test chỉ được biến đổi, nên chống rò rỉ bằng cấu trúc code thay vì nhờ trí nhớ. Logistic Regression cho xác suất, cần cho `moderation.py` (xử lý theo độ tin cậy, CLAUDE.md mục 12) và để hiệu chỉnh ngưỡng về sau.
+- **Đánh đổi:** SVM tuyến tính thường mạnh ngang hoặc hơn một chút trên văn bản nhưng không cho xác suất trực tiếp. Phương án bỏ: tự viết từng bước fit/transform (dễ lỡ fit trên dev/test).
+
+## D-011. So sánh 6 biến thể trên dev, chạy test đúng một lần
+
+- **Ngày:** 26/10/2026
+- **Bối cảnh:** chưa biết đặc trưng nào tốt hơn (word, char hay cả hai) và có nên cân bằng nhãn không. Giả thuyết: char n-gram bền hơn trước teencode.
+- **Quyết định:** 3 loại đặc trưng × {không cân bằng, `class_weight="balanced"`} = 6 file trong `configs/tfidf_lr_*.yaml`. Chọn theo macro-F1 trên dev; chạy test một lần cho biến thể được chọn, không chỉnh gì sau đó.
+- **Lý do:** biến giả thuyết thành số đo; giữ test sạch (nhìn điểm test rồi chọn lại thì test thành dev).
+- **Đánh đổi:** tham số còn lại **chưa dò**, chọn theo thông lệ: word n-gram 1–2, char n-gram 2–5 trong ranh giới từ (`char_wb`), `min_df = 2`, `sublinear_tf = true`, `C = 1.0`. Có thể chưa tối ưu.
+
+## D-012. Tiền xử lý của baseline: chỉ NFC + viết thường, giữ token 1 ký tự
+
+- **Ngày:** 26/10/2026
+- **Bối cảnh:** `TfidfVectorizer` mặc định bỏ token 1 ký tự, trong khi teencode tiếng Việt có nhiều token như vậy (ví dụ "k" = "không").
+- **Quyết định:** dùng `token_pattern = \b\w+\b` để giữ token 1 ký tự; tiền xử lý chỉ gồm chuẩn hóa Unicode NFC và viết thường.
+- **Lý do:** đây là cấu hình A (không chuẩn hóa teencode), nên chỉ làm những biến đổi không đổi nghĩa. NFC tránh cùng một chữ có hai cách mã hóa.
+- **Đánh đổi:** không có tách từ tiếng Việt (để PhoBERT ở tuần 2).
+
+## D-013. Chọn `tfidf_lr_wordchar_balanced` làm baseline chính thức
+
+- **Ngày:** 27/10/2026
+- **Bối cảnh:** 6 cấu hình trên dev (`reports/baseline_tfidf.md`): `wordchar_balanced` cao nhất với macro-F1 0.633; cân bằng nhãn giúp ở cả 3 loại đặc trưng.
+- **Quyết định:** chọn `tfidf_lr_wordchar_balanced` theo quy tắc của D-011; đã chạy test một lần: macro-F1 0.643.
+- **Lý do:** quy tắc chọn được đặt trước khi thấy kết quả, tránh chọn theo cảm tính.
+- **Đánh đổi:** khác biệt với cấu hình thứ hai (0.619) nhỏ và chưa có khoảng tin cậy. Từ nay không chỉnh baseline dựa trên điểm test; mọi cải tiến phải đánh giá lại trên dev như một mô hình mới. Logistic Regression với solver mặc định cho kết quả giống nhau mỗi lần chạy, nên yêu cầu chạy nhiều seed (CLAUDE.md mục 5) không làm thay đổi kết quả của baseline này; vẫn gọi `set_seed` cho đúng quy trình.
