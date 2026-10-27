@@ -139,11 +139,11 @@ ruff check .
 ruff format .
 pytest -q
 
-# Huấn luyện (ví dụ)
-python -m src.train --config configs/visobert_base.yaml
+# Huấn luyện + đo train/dev (không chạm test) -> models/<tên>.joblib, reports/<tên>/dev_metrics.json
+python -m src.train --config configs/tfidf_lr_wordchar.yaml
 
-# Đánh giá
-python -m src.evaluate --config configs/visobert_base.yaml --split test
+# Đánh giá trên test: CHỈ một lần, sau khi đã chốt cấu hình bằng dev
+python -m src.evaluate --config configs/tfidf_lr_wordchar.yaml --split test
 
 # Chạy demo
 python app/app.py
@@ -187,7 +187,7 @@ python app/app.py
 
 **Tuần 1: Dữ liệu và baseline**
 - [x] Tải ViHSD, thống kê nhãn, độ dài, từ khóa
-- [ ] Baseline TF-IDF + SVM/LR, ghi macro-F1 trên dev/test
+- [x] Baseline TF-IDF + SVM/LR, ghi macro-F1 trên dev/test
 - [x] Khởi tạo repo, cấu trúc thư mục, `requirements.txt`
 
 **Tuần 2: Mô hình transformer**
