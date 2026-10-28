@@ -15,7 +15,7 @@ Hệ thống phân loại bình luận tiếng Việt thành 3 nhãn `CLEAN` / `
 | TF-IDF (word + char) + LR, cân bằng nhãn | A | 0.643 | TODO |
 | ViSoBERT | A | TODO | TODO |
 
-Chi tiết trong `reports/` (baseline: [reports/baseline_tfidf.md](reports/baseline_tfidf.md)). Tham chiếu: mBERT trong bài báo gốc đạt macro-F1 0.627 trên test; khoảng 12% câu test trùng với train nên điểm test có thể cao hơn năng lực thật.
+Chi tiết trong `reports/` (baseline: [reports/baseline_tfidf.md](reports/baseline_tfidf.md)). Tham chiếu: mBERT trong bài báo gốc đạt macro-F1 0.627 trên test; khoảng 12% câu test trùng với train, nhưng trên phần test chưa gặp trong train baseline vẫn đạt 0.641, nên câu trùng gần như không thổi phồng điểm.
 
 ## Cài đặt
 
