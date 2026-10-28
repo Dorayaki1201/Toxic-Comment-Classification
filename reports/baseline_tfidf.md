@@ -53,7 +53,23 @@ Mốc so sánh trên test:
 | mBERT (bài báo gốc) | 0.627 | Luu et al. (2021), số của bài báo |
 | **TF-IDF + LR (dự án này)** | **0.643** | đo thật |
 
-## 4. Nhận xét
+## 4. Phần test đã gặp / chưa gặp trong train (đo ngày 28/10/2026, D-014)
+
+Cùng mô hình, cùng test (điểm toàn bộ ra lại đúng 0.6431). Câu "đã gặp" là câu test giống một câu train sau NFC + viết thường + gộp khoảng trắng.
+
+| Phần test | Số câu | macro-F1 | accuracy | F1 CLEAN | F1 OFFENSIVE | F1 HATE |
+|---|---|---|---|---|---|---|
+| Toàn bộ | 6680 | 0.643 | 0.840 | 0.918 | 0.435 | 0.577 |
+| Chưa gặp trong train | 5875 | **0.641** | 0.834 | 0.915 | 0.428 | 0.579 |
+| Đã gặp trong train | 805 | 0.659 | 0.882 | 0.941 | 0.491 | 0.545 |
+
+Phần đã gặp gồm 721 CLEAN, 41 OFFENSIVE, 43 HATE.
+
+- **Câu trùng gần như không thổi phồng điểm:** bỏ chúng ra, macro-F1 chỉ giảm 0.002.
+- Mô hình làm tốt hơn trên câu đã gặp (accuracy 0.882 so với 0.834), nhưng không "học thuộc" hoàn toàn: vẫn sai 70/721 câu CLEAN đã gặp. Lý do có thể là cân bằng nhãn cùng điều chuẩn của LR, và một phần câu trùng có nhãn khác với train (`data/README.md` mục 8).
+- macro-F1 trên phần đã gặp dao động mạnh vì chỉ có khoảng 40 câu mỗi lớp độc hại; không nên đọc sâu con số 0.659.
+
+## 5. Nhận xét
 
 1. **Cân bằng nhãn giúp ở cả 3 loại đặc trưng** (+2.3 đến +4.9 điểm macro-F1 dev), chủ yếu nhờ recall OFFENSIVE tăng từ 13–22% lên 42–54%. Đổi lại precision giảm: mô hình gán nhãn độc hại nhiều hơn, kể cả cho câu CLEAN (trên test, 632/5548 câu CLEAN bị gán nhãn độc hại). Đây là đánh đổi cần cân nhắc khi đặt ngưỡng cho `moderation.py`.
 2. **Char n-gram tốt hơn word n-gram trên dev, ghép cả hai tốt nhất.** Dev là văn bản sạch; độ bền trước teencode sẽ đo bằng bộ test nhiễu (tuần 4).
@@ -61,8 +77,8 @@ Mốc so sánh trên test:
 4. **Trọng số lớn nhất khớp với phân tích từ khóa** (`notebooks/02_keywords_vihsd.ipynb`): OFFENSIVE dựa vào từ chửi viết tắt; HATE dựa vào đại từ coi thường, so sánh với con vật, và từ viết tắt chỉ nhóm chính trị (rủi ro thiên lệch cần kiểm tra ở tuần 6).
 5. **Char n-gram dùng được emoji** (emoji cười nằm trong trọng số lớn của CLEAN), thông tin mà `keywords.py` đã bỏ qua. Có dấu hiệu tương quan giả (cụm từ là tên chủ đề cụ thể trong top CLEAN) và dạng không dấu của cụm từ công kích ở OFFENSIVE (ủng hộ lớp khôi phục dấu ở tuần 3).
 
-## 5. Lưu ý khi đọc kết quả
+## 6. Lưu ý khi đọc kết quả
 
-- **Baseline vượt mBERT của bài báo 1.6 điểm.** Không kết luận TF-IDF tốt hơn mBERT: (a) 11.9% câu test trùng với train (D-001), TF-IDF ghi nhớ tốt những câu này; (b) dự án dùng cân bằng nhãn, bài báo có thể không; (c) khác tiền xử lý và cách huấn luyện. Cần đo thêm macro-F1 trên phần test **không** trùng với train (TODO trong `data/README.md` mục 8).
+- **Baseline vượt mBERT của bài báo 1.6 điểm.** Không kết luận TF-IDF tốt hơn mBERT. Câu trùng không phải lý do (mục 4: phần chưa gặp vẫn 0.641), nhưng còn: (a) dự án dùng cân bằng nhãn, bài báo có thể không; (b) khác tiền xử lý và cách huấn luyện; (c) chênh lệch nhỏ và chưa có khoảng tin cậy. Bài báo không có số trên phần chưa gặp nên không so được phần này.
 - Chênh lệch giữa các cấu hình đầu bảng trên dev nhỏ (0.633 so với 0.619) so với kích thước dev (212 câu OFFENSIVE); chưa đo khoảng tin cậy.
 - Dev cũng có 12% câu trùng với train; ảnh hưởng như nhau với cả 6 cấu hình nên phép so sánh vẫn công bằng.

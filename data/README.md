@@ -171,7 +171,8 @@ Mô hình tốt nhất tác giả báo cáo là mBERT (`bert-base-multilingual-c
 
 - Phần test trùng với train gồm 714 CLEAN, 40 OFFENSIVE, 43 HATE; độ dài trung vị 6 từ, nên phần lớn là câu cụ thể chứ không chỉ là emoji hay câu một từ.
 - 725 / 797 câu đó có nhãn ở test khớp với nhãn trong train: mô hình chỉ cần ghi nhớ là đoán đúng, nên điểm test có thể cao hơn năng lực thật.
-- Dự án vẫn giữ nguyên split gốc để so sánh được với bài báo. TODO: báo cáo thêm điểm trên phần test không trùng với train.
+- Dự án vẫn giữ nguyên split gốc để so sánh được với bài báo, và mọi lần đánh giá báo thêm điểm trên phần đã gặp / chưa gặp trong train (D-014). Nếu so sau chuẩn hóa nhẹ (NFC, viết thường, gộp khoảng trắng) thì có 805 câu test đã gặp thay vì 797.
+- Kết quả với baseline: macro-F1 trên phần test chưa gặp là 0.641, gần bằng 0.643 trên toàn bộ test; câu trùng gần như không thổi phồng điểm (chi tiết: `reports/baseline_tfidf.md` mục 4).
 
 **Trùng lặp trong từng tập.** Train có 1489 dòng trùng (6.2%), dev 22 (0.8%), test 104 (1.6%).
 

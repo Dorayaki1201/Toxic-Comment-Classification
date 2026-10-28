@@ -76,6 +76,7 @@ log_odds_by_label(counts, prior_strength, min_count) -> DataFrame # label, token
 build_tfidf_lr(features, model, seed) -> Pipeline      # TF-IDF word/char -> LogisticRegression
 top_features(pipeline, label, k)      -> DataFrame     # trọng số lớn nhất mỗi nhãn, để kiểm tra mô hình học gì
 compute_metrics(y_true, y_pred)       -> dict          # macro-F1, accuracy, P/R/F1 từng lớp, confusion matrix
+find_seen(texts, train_texts)         -> Series[bool]  # câu đã gặp trong train (so sau NFC + viết thường + gộp khoảng trắng)
 python -m src.train --config configs/X.yaml            # fit train, đo train + dev + "luôn đoán CLEAN"
                                                        #   -> models/X.joblib (không commit), reports/X/dev_metrics.json
 python -m src.evaluate --config configs/X.yaml --split test   # chỉ chạy 1 lần -> reports/X/test_metrics.json
@@ -83,6 +84,7 @@ python -m src.evaluate --config configs/X.yaml --split test   # chỉ chạy 1 l
 
 - Mỗi lần chạy được xác định hoàn toàn bởi một file trong `configs/`; báo cáo lưu lại cả nội dung config và phiên bản scikit-learn.
 - `train.py` **không bao giờ** đọc test; chỉ `evaluate.py --split test` làm việc đó, và in cảnh báo.
+- `evaluate.py` đọc thêm train, nhưng chỉ để biết câu nào đã gặp; file chỉ số có 3 phần: toàn bộ, `seen_in_train`, `unseen_in_train` (D-014).
 
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 

@@ -109,3 +109,13 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Quyết định:** chọn `tfidf_lr_wordchar_balanced` theo quy tắc của D-011; đã chạy test một lần: macro-F1 0.643.
 - **Lý do:** quy tắc chọn được đặt trước khi thấy kết quả, tránh chọn theo cảm tính.
 - **Đánh đổi:** khác biệt với cấu hình thứ hai (0.619) nhỏ và chưa có khoảng tin cậy. Từ nay không chỉnh baseline dựa trên điểm test; mọi cải tiến phải đánh giá lại trên dev như một mô hình mới. Logistic Regression với solver mặc định cho kết quả giống nhau mỗi lần chạy, nên yêu cầu chạy nhiều seed (CLAUDE.md mục 5) không làm thay đổi kết quả của baseline này; vẫn gọi `set_seed` cho đúng quy trình.
+
+## D-014. Mọi lần đánh giá tự báo thêm điểm trên phần đã gặp / chưa gặp trong train
+
+- **Ngày:** 28/10/2026
+- **Bối cảnh:** khoảng 12% câu test trùng với train (D-001). Chưa biết điểm test 0.643 của baseline có bị thổi phồng do mô hình ghi nhớ những câu này không.
+- **Quyết định:** `evaluate_saved_model` luôn ghi thêm 2 khối `seen_in_train` và `unseen_in_train` vào file chỉ số. "Trùng" nghĩa là giống một câu train sau khi chuẩn hóa NFC, viết thường và gộp khoảng trắng (`overlap_key`); chuỗi rỗng không bao giờ tính là trùng. Train dùng để so là train sau `load_vihsd` (đúng dữ liệu mô hình đã học).
+- **Lý do:** đặt trong `evaluate.py` để mọi mô hình sau (PhoBERT, ViSoBERT...) tự có con số này, không phải nhớ đo riêng. Chuẩn hóa nhẹ bắt thêm các câu chỉ khác hoa/thường hoặc khoảng trắng, mà mô hình (vốn viết thường đầu vào) coi như một câu.
+- **Chạy lại test có vi phạm D-011 không:** không. Mô hình giữ nguyên, điểm toàn bộ test ra lại đúng 0.6431; kết quả chỉ dùng để phân tích, không dùng để chọn hay chỉnh mô hình.
+- **Kết quả (baseline):** 805/6680 câu test đã gặp (797 nếu so giống hệt). Phần chưa gặp: macro-F1 0.641 so với 0.643 toàn bộ, nên câu trùng gần như không thổi phồng điểm của baseline.
+- **Đánh đổi:** phần đã gặp chỉ có 41 OFFENSIVE và 43 HATE nên macro-F1 trên phần này dao động mạnh. Phương án bỏ: so giống hệt chuỗi (nhất quán với số 797 nhưng bỏ sót biến thể hoa/thường); notebook đo một lần (mô hình sau dễ quên đo).
