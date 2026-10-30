@@ -39,7 +39,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/normalize.py` | chuẩn hóa teencode, viết tắt, ký tự kéo dài/chèn | ⬜ tuần 3 | |
 | `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
-| `src/transformer.py` | fine-tune ViSoBERT (code ✅, chưa chạy trên Kaggle); PhoBERT (⬜ phần 2c) | 🟡 | `tests/test_transformer.py` |
+| `src/transformer.py` | fine-tune ViSoBERT (✅ chạy trên Kaggle, dev 0.709 một seed: `reports/transformer_visobert.md`); PhoBERT (⬜ phần 2c) | 🟡 | `tests/test_transformer.py` |
 | `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu, bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
 | `src/moderation.py` | logic xử lý sau phân loại | ⬜ tuần 7 | |
 | `app/app.py` | Gradio demo | ⬜ tuần 7 | |
