@@ -22,7 +22,7 @@ from sklearn.metrics import (
 
 from src.data import LABEL_COL, LABEL_NAMES, TEXT_COL, load_vihsd
 from src.models import load_model
-from src.utils import get_logger, load_config
+from src.utils import get_logger, load_config, with_seed
 
 logger = get_logger(__name__)
 
@@ -91,13 +91,17 @@ def evaluate_saved_model(
     split: str,
     models_dir: str | Path = "models",
     reports_dir: str | Path = "reports",
+    seed: int | None = None,
 ) -> dict[str, Any]:
     """Nạp mô hình đã train theo config, đoán trên một tập, ghi chỉ số vào reports/<tên>/.
 
     Ngoài chỉ số trên toàn bộ tập, báo thêm hai phần: câu đã gặp trong train (seen)
     và câu chưa gặp (unseen), để biết điểm có bị thổi phồng do ghi nhớ hay không.
+    seed khác None: dùng mô hình <tên>_s<seed> (đã train bằng src.train --seed).
     """
     config = load_config(config_path)
+    if seed is not None:
+        config = with_seed(config, seed)
     name = config["name"]
     model = load_model(config, models_dir)
     df = load_vihsd(split, config["data_dir"])
@@ -128,14 +132,70 @@ def evaluate_saved_model(
     return metrics
 
 
+def _mean_std(values: list[float]) -> dict[str, Any]:
+    """Trung bình và độ lệch chuẩn mẫu (ddof=1) của một chỉ số qua các seed."""
+    array = np.asarray(values, dtype=float)
+    std = float(array.std(ddof=1)) if len(array) > 1 else 0.0
+    return {"mean": float(array.mean()), "std": std, "values": array.tolist()}
+
+
+def summarize_seeds(
+    name: str, seeds: list[int], split: str, reports_dir: str | Path = "reports"
+) -> dict[str, Any]:
+    """Gộp chỉ số của các lần chạy <tên>_s<seed> thành trung bình ± độ lệch chuẩn.
+
+    Chỉ đọc file báo cáo đã có, không nạp mô hình. Với dev, đọc khối "dev" trong báo cáo của
+    src.train. Ghi kết quả vào reports/<tên>/<split>_summary.json.
+    """
+    runs = []
+    for seed in seeds:
+        path = Path(reports_dir) / f"{name}_s{seed}" / f"{split}_metrics.json"
+        report = json.loads(path.read_text(encoding="utf-8"))
+        runs.append(report.get("dev", report) if split == "dev" else report)
+
+    summary: dict[str, Any] = {
+        "config": name,
+        "split": split,
+        "seeds": list(seeds),
+        "macro_f1": _mean_std([run["macro_f1"] for run in runs]),
+        "per_class_f1": {
+            label: _mean_std([run["per_class"][label]["f1"] for run in runs])
+            for label in LABEL_NAMES.values()
+        },
+    }
+    if all("unseen_in_train" in run for run in runs):
+        summary["unseen_macro_f1"] = _mean_std([run["unseen_in_train"]["macro_f1"] for run in runs])
+    save_metrics(summary, Path(reports_dir) / name / f"{split}_summary.json")
+
+    macro = summary["macro_f1"]
+    logger.info(
+        f"{name} | {split} | {len(seeds)} seed: macro-F1 = {macro['mean']:.4f} ± {macro['std']:.4f}"
+    )
+    for label, stats in summary["per_class_f1"].items():
+        logger.info(f"{name} | {split} | F1 {label} = {stats['mean']:.4f} ± {stats['std']:.4f}")
+    return summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Đánh giá mô hình đã train trên một tập.")
     parser.add_argument("--config", required=True)
     parser.add_argument("--split", required=True, choices=["dev", "test"])
+    parser.add_argument("--seed", type=int, help="đánh giá mô hình <tên>_s<seed>")
+    parser.add_argument(
+        "--summarize-seeds",
+        type=int,
+        nargs="+",
+        metavar="SEED",
+        help="chỉ gộp các báo cáo <tên>_s<seed> đã có thành trung bình ± độ lệch chuẩn",
+    )
     args = parser.parse_args()
+    if args.summarize_seeds:
+        name = load_config(args.config)["name"]
+        summarize_seeds(name, args.summarize_seeds, args.split)
+        return
     if args.split == "test":
         logger.warning("Đang chạy trên TEST: chỉ làm một lần, sau khi đã chốt cấu hình bằng dev.")
-    evaluate_saved_model(args.config, args.split)
+    evaluate_saved_model(args.config, args.split, seed=args.seed)
 
 
 if __name__ == "__main__":

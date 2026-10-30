@@ -39,7 +39,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/normalize.py` | chuẩn hóa teencode, viết tắt, ký tự kéo dài/chèn | ⬜ tuần 3 | |
 | `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
-| `src/transformer.py` | fine-tune ViSoBERT (✅ chạy trên Kaggle, dev 0.709 một seed: `reports/transformer_visobert.md`); PhoBERT (⬜ phần 2c) | 🟡 | `tests/test_transformer.py` |
+| `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⬜ phần 2c) | 🟡 | `tests/test_transformer.py` |
 | `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu, bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
 | `src/moderation.py` | logic xử lý sau phân loại | ⬜ tuần 7 | |
 | `app/app.py` | Gradio demo | ⬜ tuần 7 | |
@@ -99,6 +99,7 @@ python -m src.transformer --config configs/X.yaml           # phân bố số to
 ```
 
 - `save_model` / `load_model` trong `models.py` chọn cách lưu theo `type`, nên `evaluate.py` không cần biết loại mô hình.
+- Nhiều seed (D-019): `with_seed(config, seed)` trong `utils.py` tạo tên `<tên>_s<seed>`; `train` và `evaluate` nhận `--seed`. `summarize_seeds` trong `evaluate.py` gộp các báo cáo thành `reports/<tên>/<split>_summary.json` (trung bình ± độ lệch chuẩn mẫu). Checkpoint bị xóa sau khi train, chỉ giữ mô hình epoch tốt nhất.
 - Cần transformers 4.x (D-016). Huấn luyện thật chạy trên Kaggle theo `docs/kaggle.md`; test trên máy dùng một mô hình BERT tí hon tự tạo, không tải gì từ mạng.
 
 ## 4. Ranh giới dữ liệu (chống rò rỉ)

@@ -6,16 +6,16 @@ Hệ thống phân loại bình luận tiếng Việt thành 3 nhãn `CLEAN` / `
 
 ## Trạng thái
 
-🚧 Đang phát triển (tuần 1: dữ liệu và baseline).
+🚧 Đang phát triển (tuần 2: mô hình transformer).
 
 ## Kết quả
 
-| Mô hình | Cấu hình | Macro-F1 (test gốc) | Macro-F1 (test nhiễu) |
-|---|---|---|---|
-| TF-IDF (word + char) + LR, cân bằng nhãn | A | 0.643 | TODO |
-| ViSoBERT | A | TODO | TODO |
+| Mô hình | Cấu hình | Macro-F1 (test gốc) | Macro-F1 (test gốc, phần chưa gặp trong train) | Macro-F1 (test nhiễu) |
+|---|---|---|---|---|
+| TF-IDF (word + char) + LR, cân bằng nhãn | A | 0.643 (1 lần chạy) | 0.641 | TODO |
+| ViSoBERT, cân bằng nhãn | A | **0.694 ± 0.004** (3 seed) | 0.695 ± 0.002 | TODO |
 
-Chi tiết trong `reports/` (baseline: [reports/baseline_tfidf.md](reports/baseline_tfidf.md)). Tham chiếu: mBERT trong bài báo gốc đạt macro-F1 0.627 trên test; khoảng 12% câu test trùng với train, nhưng trên phần test chưa gặp trong train baseline vẫn đạt 0.641, nên câu trùng gần như không thổi phồng điểm.
+Chi tiết trong `reports/` (baseline: [reports/baseline_tfidf.md](reports/baseline_tfidf.md), ViSoBERT: [reports/transformer_visobert.md](reports/transformer_visobert.md)). Cấu hình được chọn trên dev theo quy tắc đặt trước; test chỉ chạy một lần cho cấu hình đã chọn. Tham chiếu: mBERT trong bài báo gốc đạt macro-F1 0.627 trên test (khác cách huấn luyện, nên chỉ để tham khảo). Khoảng 12% câu test trùng với train, nhưng điểm trên phần chưa gặp gần như bằng điểm toàn bộ test ở cả hai mô hình.
 
 ## Cài đặt
 

@@ -43,6 +43,11 @@ def load_config(path: str | Path) -> dict[str, Any]:
     return config
 
 
+def with_seed(config: dict[str, Any], seed: int) -> dict[str, Any]:
+    """Bản sao config với seed mới; tên thêm hậu tố _s<seed> để mỗi seed có kết quả riêng."""
+    return {**config, "seed": seed, "name": f"{config['name']}_s{seed}"}
+
+
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Tạo logger in ra màn hình kèm thời gian; gọi nhiều lần không bị in trùng dòng."""
     logger = logging.getLogger(name)

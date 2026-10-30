@@ -150,6 +150,10 @@ python -m src.evaluate --config configs/tfidf_lr_wordchar.yaml --split test
 # Transformer (cần transformers 4.x, D-016): đo số token trên train để chọn max_length
 python -m src.transformer --config configs/visobert_base.yaml
 # Huấn luyện transformer: chạy trên Kaggle theo docs/kaggle.md, cùng lệnh src.train
+# Nhiều seed: --seed ghi đè seed, tên thành <tên>_s<seed>; gộp trung bình ± độ lệch chuẩn:
+python -m src.train --config configs/visobert_base.yaml --seed 43
+python -m src.evaluate --config configs/visobert_base.yaml --split dev --summarize-seeds 42 43 44
+python -m src.evaluate --config configs/visobert_base.yaml --split test --seed 43
 # Test cần mạng (kiểm tra tokenizer ViSoBERT): RUN_NETWORK_TESTS=1 pytest -q -m network
 
 # Chạy demo
@@ -198,9 +202,9 @@ python app/app.py
 - [x] Khởi tạo repo, cấu trúc thư mục, `requirements.txt`
 
 **Tuần 2: Mô hình transformer** (làm ViSoBERT trước PhoBERT, D-015)
-- [ ] Fine-tune ViSoBERT
+- [x] Fine-tune ViSoBERT (test 0.694 ± 0.004, 3 seed: `reports/transformer_visobert.md`)
 - [ ] Tách từ + fine-tune PhoBERT
-- [ ] Xử lý mất cân bằng nhãn (class weight / focal loss / oversampling)
+- [x] Xử lý mất cân bằng nhãn (class weight; so trên dev 3 seed, D-019)
 
 **Tuần 3: Chuẩn hóa bằng luật**
 - [ ] Xây từ điển teencode/viết tắt (chỉ từ dữ liệu train)

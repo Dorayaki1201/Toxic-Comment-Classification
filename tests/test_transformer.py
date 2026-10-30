@@ -189,6 +189,23 @@ def test_training_refuses_multiple_gpus(tmp_path, tiny_pretrained, monkeypatch):
         run(config_path, tmp_path / "m", tmp_path / "r")
 
 
+def test_seed_override_names_outputs_and_removes_checkpoints(tmp_path, tiny_pretrained):
+    data_dir = tmp_path / "data"
+    write_toy_data(data_dir)
+    config_path = write_config(tmp_path, transformer_config(tiny_pretrained, data_dir))
+    models_dir, reports_dir = tmp_path / "models", tmp_path / "reports"
+
+    report = run(config_path, models_dir, reports_dir, seed=7)
+
+    assert report["config"] == "toy_bert_s7"
+    assert report["config_values"]["seed"] == 7
+    assert (models_dir / "toy_bert_s7" / "classifier_config.json").exists()
+    assert not (models_dir / "toy_bert_s7_checkpoints").exists()
+    metrics = evaluate_saved_model(config_path, "test", models_dir, reports_dir, seed=7)
+    assert metrics["config"] == "toy_bert_s7"
+    assert (reports_dir / "toy_bert_s7" / "test_metrics.json").exists()
+
+
 def test_report_records_device(tmp_path, tiny_pretrained):
     data_dir = tmp_path / "data"
     write_toy_data(data_dir)

@@ -1,0 +1,165 @@
+{
+  "config": "visobert_balanced_s43",
+  "config_values": {
+    "name": "visobert_balanced_s43",
+    "type": "transformer",
+    "seed": 43,
+    "data_dir": "data/raw/vihsd",
+    "model": {
+      "pretrained": "uitnlp/visobert",
+      "max_length": 128,
+      "class_weight": "balanced"
+    },
+    "training": {
+      "learning_rate": 2e-05,
+      "batch_size": 32,
+      "epochs": 4,
+      "warmup_ratio": 0.1,
+      "weight_decay": 0.01,
+      "fp16": true,
+      "max_train_samples": null
+    }
+  },
+  "sklearn_version": "1.6.1",
+  "torch_version": "2.11.0+cu128",
+  "transformers_version": "4.57.6",
+  "device": "Tesla T4",
+  "train": {
+    "macro_f1": 0.9638384500834656,
+    "accuracy": 0.9841487768347479,
+    "per_class": {
+      "CLEAN": {
+        "precision": 0.9983159828536436,
+        "recall": 0.9842028475122,
+        "f1": 0.9912091809591366,
+        "support": 19877
+      },
+      "OFFENSIVE": {
+        "precision": 0.9110981987216734,
+        "recall": 0.9775561097256857,
+        "f1": 0.9431578947368421,
+        "support": 1604
+      },
+      "HATE": {
+        "precision": 0.928282456785583,
+        "recall": 0.987866927592955,
+        "f1": 0.9571482745544179,
+        "support": 2555
+      }
+    },
+    "confusion_matrix": [
+      [
+        19563,
+        137,
+        177
+      ],
+      [
+        18,
+        1568,
+        18
+      ],
+      [
+        15,
+        16,
+        2524
+      ]
+    ],
+    "labels": [
+      "CLEAN",
+      "OFFENSIVE",
+      "HATE"
+    ]
+  },
+  "dev": {
+    "macro_f1": 0.7267731828162773,
+    "accuracy": 0.8907185628742516,
+    "per_class": {
+      "CLEAN": {
+        "precision": 0.9467697907188353,
+        "recall": 0.9502283105022831,
+        "f1": 0.9484958979033729,
+        "support": 2190
+      },
+      "OFFENSIVE": {
+        "precision": 0.6,
+        "recall": 0.5235849056603774,
+        "f1": 0.5591939546599496,
+        "support": 212
+      },
+      "HATE": {
+        "precision": 0.6505190311418685,
+        "recall": 0.6962962962962963,
+        "f1": 0.6726296958855098,
+        "support": 270
+      }
+    },
+    "confusion_matrix": [
+      [
+        2081,
+        52,
+        57
+      ],
+      [
+        57,
+        111,
+        44
+      ],
+      [
+        60,
+        22,
+        188
+      ]
+    ],
+    "labels": [
+      "CLEAN",
+      "OFFENSIVE",
+      "HATE"
+    ]
+  },
+  "dev_always_clean": {
+    "macro_f1": 0.3002879473467709,
+    "accuracy": 0.8196107784431138,
+    "per_class": {
+      "CLEAN": {
+        "precision": 0.8196107784431138,
+        "recall": 1.0,
+        "f1": 0.9008638420403127,
+        "support": 2190
+      },
+      "OFFENSIVE": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 212
+      },
+      "HATE": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 270
+      }
+    },
+    "confusion_matrix": [
+      [
+        2190,
+        0,
+        0
+      ],
+      [
+        212,
+        0,
+        0
+      ],
+      [
+        270,
+        0,
+        0
+      ]
+    ],
+    "labels": [
+      "CLEAN",
+      "OFFENSIVE",
+      "HATE"
+    ]
+  }
+}
