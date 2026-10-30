@@ -150,6 +150,10 @@ python -m src.evaluate --config configs/tfidf_lr_wordchar.yaml --split test
 # Transformer (cần transformers 4.x, D-016): đo số token trên train để chọn max_length
 python -m src.transformer --config configs/visobert_base.yaml
 # Huấn luyện transformer: chạy trên Kaggle theo docs/kaggle.md, cùng lệnh src.train
+# Nhiều seed: --seed ghi đè seed, tên thành <tên>_s<seed>; gộp trung bình ± độ lệch chuẩn:
+python -m src.train --config configs/visobert_base.yaml --seed 43
+python -m src.evaluate --config configs/visobert_base.yaml --split dev --summarize-seeds 42 43 44
+python -m src.evaluate --config configs/visobert_base.yaml --split test --seed 43
 # Test cần mạng (kiểm tra tokenizer ViSoBERT): RUN_NETWORK_TESTS=1 pytest -q -m network
 
 # Chạy demo

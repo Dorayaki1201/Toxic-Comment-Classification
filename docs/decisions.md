@@ -157,3 +157,15 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Quyết định:** `train_transformer` báo lỗi nếu thấy hơn 1 GPU; trên Kaggle chạy với `CUDA_VISIBLE_DEVICES=0`. Báo cáo `dev_metrics.json` ghi thêm trường `device` (tên GPU).
 - **Lý do:** config phải mô tả đúng thí nghiệm, và cùng config phải cho cùng thiết lập trên mọi máy. Với mô hình cỡ base, 2 GPU kiểu này không nhanh hơn đáng kể.
 - **Đánh đổi:** không tận dụng GPU thứ hai. Phương án bỏ: chia `batch_size` cho số GPU (vẫn phụ thuộc phần cứng, khó giải thích hơn).
+
+## D-019. So sánh loss thường và loss cân bằng nhãn cho ViSoBERT bằng 3 seed; quy tắc chọn đặt trước
+
+- **Ngày:** 30/10/2026 (ghi **trước** khi chạy)
+- **Bối cảnh:** ViSoBERT loss thường đạt macro-F1 dev 0.709 (seed 42). Chênh lệch giữa loss thường và loss cân bằng có thể chỉ khoảng 1 điểm, cỡ dao động do seed; chọn theo 1 seed dễ chọn nhầm sự may mắn.
+- **Quyết định:**
+  - Chạy `visobert_base` và `visobert_balanced` (chỉ khác `class_weight`), mỗi cấu hình 3 seed: 42, 43, 44 (`python -m src.train --seed`). Seed 42 được chạy lại dưới tên `_s42` để kiểm tra độ lặp lại so với lần chạy đầu.
+  - Gộp kết quả bằng `python -m src.evaluate --summarize-seeds`: trung bình ± độ lệch chuẩn mẫu (ddof=1).
+  - **Quy tắc chọn:** chọn cấu hình có trung bình macro-F1 dev cao hơn. Nếu hai trung bình chênh nhau ít hơn độ lệch chuẩn lớn hơn trong hai cấu hình, coi như hòa và chọn `visobert_base` (đơn giản hơn, không cần trọng số).
+  - Sau khi chọn: chạy test **một lần** cho 3 mô hình của cấu hình được chọn, báo cáo trung bình ± độ lệch chuẩn của toàn bộ test và phần unseen. Cấu hình còn lại không chạy test.
+- **Lý do:** đặt quy tắc trước khi thấy số để tránh chọn theo cảm tính; 3 seed là mức tối thiểu của CLAUDE.md mục 5. Một lần chạy khoảng 5 phút nên 6 lần vừa hạn mức GPU.
+- **Đánh đổi:** 3 seed vẫn ít, độ lệch chuẩn ước lượng còn thô. Phương án bỏ: 1 seed mỗi cấu hình (dễ chọn nhầm); 6 file config riêng cho từng seed (dễ lệch nhau).

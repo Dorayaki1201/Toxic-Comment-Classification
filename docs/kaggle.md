@@ -56,6 +56,31 @@ Code nằm trên GitHub, dữ liệu nằm trong một Kaggle Dataset **riêng t
 !CUDA_VISIBLE_DEVICES=0 python -m src.train --config configs/visobert_base.yaml
 ```
 
+### Chạy nhiều seed (phần 2b, D-019)
+
+```bash
+# Lấy code của nhánh mới (nếu notebook đã clone từ trước)
+!git fetch origin && git checkout feat/visobert-seeds && git pull && git log --oneline -1
+```
+
+```bash
+# 2 cấu hình x 3 seed = 6 lần, mỗi lần khoảng 6 phút; dừng ngay nếu một lần lỗi
+!for s in 42 43 44; do for c in visobert_base visobert_balanced; do CUDA_VISIBLE_DEVICES=0 python -m src.train --config configs/$c.yaml --seed $s || exit 1; done; done
+```
+
+```bash
+# Gộp trung bình ± độ lệch chuẩn trên dev (chỉ đọc báo cáo, không nạp mô hình)
+!python -m src.evaluate --config configs/visobert_base.yaml --split dev --summarize-seeds 42 43 44
+!python -m src.evaluate --config configs/visobert_balanced.yaml --split dev --summarize-seeds 42 43 44
+```
+
+```bash
+# Đóng gói báo cáo để tải về (Output -> /kaggle/working/repo/reports.zip)
+!zip -qr reports.zip reports && ls -lh reports.zip
+```
+
+Giữ phiên mở cho tới khi chọn xong cấu hình: bước chạy test cần 3 mô hình trong `models/`. Nếu phiên mất, train lại 3 seed của cấu hình được chọn.
+
 Ghi chú môi trường (lần chạy 30/10/2026): Kaggle dùng Python 3.13, torch 2.11.0+cu128. Ô 2 in cảnh báo xung đột `huggingface-hub` với `gradio`/`diffusers` cài sẵn: vô hại khi train vì không dùng hai thư viện này. **Rủi ro cho tuần 7:** `gradio` bản mới cần `huggingface-hub >= 1.16`, còn `transformers` 4.57 cần `< 1.0`; cần kiểm tra khi làm demo.
 
 ## 4. Lấy kết quả về máy
