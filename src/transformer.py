@@ -7,6 +7,7 @@ giống Pipeline của scikit-learn, nên evaluate.py và moderation.py dùng ch
 """
 
 import json
+import shutil
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -228,6 +229,8 @@ def train_transformer(
         compute_metrics=_trainer_metrics,
     )
     trainer.train()
+    # Mô hình epoch tốt nhất đã nằm trong trainer.model và sẽ được lưu riêng; xóa checkpoint.
+    shutil.rmtree(checkpoints_dir, ignore_errors=True)
     return TransformerClassifier(trainer.model, tokenizer, max_length)
 
 

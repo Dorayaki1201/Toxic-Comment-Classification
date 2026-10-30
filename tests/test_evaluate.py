@@ -15,6 +15,7 @@ from src.evaluate import (
     overlap_key,
     save_metrics,
     subset_metrics,
+    summarize_seeds,
 )
 from src.models import build_tfidf_lr
 
@@ -105,6 +106,34 @@ def test_evaluate_saved_model_reports_seen_and_unseen_parts(tmp_path):
     assert (
         saved["seen_in_train"]["confusion_matrix"] == metrics["seen_in_train"]["confusion_matrix"]
     )
+
+
+def write_seed_report(reports_dir, name, seed, split, macro_f1, unseen=None):
+    per_class = {label: {"f1": macro_f1} for label in ["CLEAN", "OFFENSIVE", "HATE"]}
+    metrics = {"macro_f1": macro_f1, "per_class": per_class}
+    if unseen is not None:
+        metrics["unseen_in_train"] = {"macro_f1": unseen}
+    report = {"dev": metrics, "train": {"macro_f1": 1.0}} if split == "dev" else metrics
+    save_metrics(report, reports_dir / f"{name}_s{seed}" / f"{split}_metrics.json")
+
+
+def test_summarize_seeds_reads_dev_block_and_uses_sample_std(tmp_path):
+    for seed, score in zip([1, 2, 3], [0.70, 0.72, 0.74], strict=True):
+        write_seed_report(tmp_path, "toy", seed, "dev", score)
+    summary = summarize_seeds("toy", [1, 2, 3], "dev", reports_dir=tmp_path)
+    assert summary["macro_f1"]["mean"] == pytest.approx(0.72)
+    # Độ lệch chuẩn mẫu (ddof=1) của 0.70, 0.72, 0.74 là 0.02.
+    assert summary["macro_f1"]["std"] == pytest.approx(0.02)
+    assert summary["per_class_f1"]["HATE"]["values"] == pytest.approx([0.70, 0.72, 0.74])
+    assert "unseen_macro_f1" not in summary
+    assert (tmp_path / "toy" / "dev_summary.json").exists()
+
+
+def test_summarize_seeds_on_test_includes_unseen(tmp_path):
+    for seed, score in zip([1, 2], [0.60, 0.64], strict=True):
+        write_seed_report(tmp_path, "toy", seed, "test", score, unseen=score - 0.01)
+    summary = summarize_seeds("toy", [1, 2], "test", reports_dir=tmp_path)
+    assert summary["unseen_macro_f1"]["mean"] == pytest.approx(0.61)
 
 
 def test_save_metrics_roundtrip_keeps_vietnamese(tmp_path):

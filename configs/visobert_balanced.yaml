@@ -1,0 +1,20 @@
+# ViSoBERT fine-tune, không chuẩn hóa (cấu hình A), loss có trọng số lớp "balanced".
+# Giống hệt visobert_base.yaml, chỉ khác class_weight (phần 2b, D-019).
+name: visobert_balanced
+type: transformer
+seed: 42
+data_dir: data/raw/vihsd
+
+model:
+  pretrained: uitnlp/visobert
+  max_length: 128               # đo trên train: chỉ 0.07% câu dài hơn (D-017)
+  class_weight: balanced
+
+training:
+  learning_rate: 2.0e-5
+  batch_size: 32
+  epochs: 4
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  fp16: true                    # chỉ bật khi có GPU
+  max_train_samples: null       # null = dùng toàn bộ train

@@ -4,7 +4,7 @@ import random
 import numpy as np
 import pytest
 
-from src.utils import get_logger, load_config, set_seed
+from src.utils import get_logger, load_config, set_seed, with_seed
 
 
 def test_set_seed_reproducible():
@@ -46,6 +46,15 @@ def test_load_config_rejects_non_mapping(tmp_path):
 def test_load_config_missing_file(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_config(tmp_path / "missing.yaml")
+
+
+def test_with_seed_overrides_seed_and_suffixes_name_without_mutating():
+    config = {"name": "visobert_base", "seed": 42, "model": {"max_length": 128}}
+    result = with_seed(config, 43)
+    assert result["seed"] == 43
+    assert result["name"] == "visobert_base_s43"
+    assert result["model"] == {"max_length": 128}
+    assert config == {"name": "visobert_base", "seed": 42, "model": {"max_length": 128}}
 
 
 def test_get_logger_no_duplicate_handlers():

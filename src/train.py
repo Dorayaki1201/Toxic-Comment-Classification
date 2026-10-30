@@ -13,7 +13,7 @@ import sklearn
 from src.data import LABEL_COL, TEXT_COL, load_vihsd
 from src.evaluate import compute_metrics, save_metrics
 from src.models import build_tfidf_lr, model_type, save_model
-from src.utils import get_logger, load_config, set_seed
+from src.utils import get_logger, load_config, set_seed, with_seed
 
 logger = get_logger(__name__)
 
@@ -49,9 +49,15 @@ def run(
     config_path: str | Path,
     models_dir: str | Path = "models",
     reports_dir: str | Path = "reports",
+    seed: int | None = None,
 ) -> dict[str, Any]:
-    """Train trên train, đo train/dev, lưu mô hình vào models/ và chỉ số vào reports/<tên>/."""
+    """Train trên train, đo train/dev, lưu mô hình vào models/ và chỉ số vào reports/<tên>/.
+
+    seed khác None: ghi đè seed trong config, tên thành <tên>_s<seed>.
+    """
     config = load_config(config_path)
+    if seed is not None:
+        config = with_seed(config, seed)
     name = config["name"]
     set_seed(config["seed"])
 
@@ -85,8 +91,9 @@ def run(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Huấn luyện mô hình theo file cấu hình.")
     parser.add_argument("--config", required=True)
+    parser.add_argument("--seed", type=int, help="ghi đè seed; tên thêm hậu tố _s<seed>")
     args = parser.parse_args()
-    run(args.config)
+    run(args.config, seed=args.seed)
 
 
 if __name__ == "__main__":
