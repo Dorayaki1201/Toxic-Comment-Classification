@@ -44,14 +44,16 @@ Code nằm trên GitHub, dữ liệu nằm trong một Kaggle Dataset **riêng t
 !RUN_NETWORK_TESTS=1 python -m pytest -q -m network
 ```
 
+Ô 5 và ô 6 chỉ dùng **1 GPU** (`CUDA_VISIBLE_DEVICES=0`): với nhiều GPU, `Trainer` chia batch cho từng GPU nên batch thật bị nhân lên mà không báo; code sẽ dừng nếu thấy hơn 1 GPU (D-018).
+
 ```bash
 # Ô 5: chạy thử nhanh (500 câu, 1 epoch) để kiểm tra pipeline
-!python -m src.train --config configs/visobert_smoke.yaml
+!CUDA_VISIBLE_DEVICES=0 python -m src.train --config configs/visobert_smoke.yaml
 ```
 
 ```bash
 # Ô 6: chạy thật (chỉ sau khi ô 5 ổn)
-!python -m src.train --config configs/visobert_base.yaml
+!CUDA_VISIBLE_DEVICES=0 python -m src.train --config configs/visobert_base.yaml
 ```
 
 Ghi chú môi trường (lần chạy 30/10/2026): Kaggle dùng Python 3.13, torch 2.11.0+cu128. Ô 2 in cảnh báo xung đột `huggingface-hub` với `gradio`/`diffusers` cài sẵn: vô hại khi train vì không dùng hai thư viện này. **Rủi ro cho tuần 7:** `gradio` bản mới cần `huggingface-hub >= 1.16`, còn `transformers` 4.57 cần `< 1.0`; cần kiểm tra khi làm demo.

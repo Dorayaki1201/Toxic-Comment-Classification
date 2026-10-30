@@ -149,3 +149,11 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Quyết định:** `max_length = 128`.
 - **Lý do:** chỉ khoảng 17 câu train bị cắt. Vì đệm theo từng batch (`DataCollatorWithPadding`), phần lớn batch vẫn ngắn, nên 128 chậm hơn 64 không đáng kể nhưng giữ nguyên được khoảng 320 câu. Lên 256 chỉ giữ thêm khoảng 10 câu.
 - **Đánh đổi:** câu bị cắt mất phần cuối; nội dung độc hại nằm cuối một câu rất dài sẽ bị bỏ qua. Chỉ đo trên train, không nhìn dev/test.
+
+## D-018. Huấn luyện transformer trên đúng 1 GPU, ghi tên GPU vào báo cáo
+
+- **Ngày:** 30/10/2026
+- **Bối cảnh:** lần chạy thử `visobert_smoke` trên Kaggle (GPU T4 x2) chỉ có 8 bước train cho 500 câu với `batch_size: 32` (lẽ ra 16). `Trainer` tự dùng cả 2 GPU và đưa mỗi GPU 32 câu, nên batch thật là 64, khác với config, và kết quả phụ thuộc số GPU của máy.
+- **Quyết định:** `train_transformer` báo lỗi nếu thấy hơn 1 GPU; trên Kaggle chạy với `CUDA_VISIBLE_DEVICES=0`. Báo cáo `dev_metrics.json` ghi thêm trường `device` (tên GPU).
+- **Lý do:** config phải mô tả đúng thí nghiệm, và cùng config phải cho cùng thiết lập trên mọi máy. Với mô hình cỡ base, 2 GPU kiểu này không nhanh hơn đáng kể.
+- **Đánh đổi:** không tận dụng GPU thứ hai. Phương án bỏ: chia `batch_size` cho số GPU (vẫn phụ thuộc phần cứng, khó giải thích hơn).
