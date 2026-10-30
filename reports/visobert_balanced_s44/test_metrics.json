@@ -1,0 +1,145 @@
+{
+  "macro_f1": 0.695396034888819,
+  "accuracy": 0.8827844311377245,
+  "per_class": {
+    "CLEAN": {
+      "precision": 0.943109987357775,
+      "recall": 0.941240086517664,
+      "f1": 0.9421741091565178,
+      "support": 5548
+    },
+    "OFFENSIVE": {
+      "precision": 0.5111111111111111,
+      "recall": 0.46621621621621623,
+      "f1": 0.4876325088339223,
+      "support": 444
+    },
+    "HATE": {
+      "precision": 0.6341463414634146,
+      "recall": 0.6802325581395349,
+      "f1": 0.6563814866760168,
+      "support": 688
+    }
+  },
+  "confusion_matrix": [
+    [
+      5222,
+      141,
+      185
+    ],
+    [
+      152,
+      207,
+      85
+    ],
+    [
+      163,
+      57,
+      468
+    ]
+  ],
+  "labels": [
+    "CLEAN",
+    "OFFENSIVE",
+    "HATE"
+  ],
+  "config": "visobert_balanced_s44",
+  "split": "test",
+  "rows": 6680,
+  "sklearn_version": "1.6.1",
+  "overlap_definition": "trùng train sau NFC + viết thường + gộp khoảng trắng",
+  "seen_in_train": {
+    "rows": 805,
+    "macro_f1": 0.6815653227583168,
+    "accuracy": 0.9093167701863354,
+    "per_class": {
+      "CLEAN": {
+        "precision": 0.968705547652916,
+        "recall": 0.9445214979195562,
+        "f1": 0.9564606741573034,
+        "support": 721
+      },
+      "OFFENSIVE": {
+        "precision": 0.4883720930232558,
+        "recall": 0.5121951219512195,
+        "f1": 0.5,
+        "support": 41
+      },
+      "HATE": {
+        "precision": 0.5084745762711864,
+        "recall": 0.6976744186046512,
+        "f1": 0.5882352941176471,
+        "support": 43
+      }
+    },
+    "confusion_matrix": [
+      [
+        681,
+        18,
+        22
+      ],
+      [
+        13,
+        21,
+        7
+      ],
+      [
+        9,
+        4,
+        30
+      ]
+    ],
+    "labels": [
+      "CLEAN",
+      "OFFENSIVE",
+      "HATE"
+    ]
+  },
+  "unseen_in_train": {
+    "rows": 5875,
+    "macro_f1": 0.6959914152176082,
+    "accuracy": 0.8791489361702127,
+    "per_class": {
+      "CLEAN": {
+        "precision": 0.9393876706661151,
+        "recall": 0.9407499482079967,
+        "f1": 0.9400683159093262,
+        "support": 4827
+      },
+      "OFFENSIVE": {
+        "precision": 0.5138121546961326,
+        "recall": 0.46153846153846156,
+        "f1": 0.48627450980392156,
+        "support": 403
+      },
+      "HATE": {
+        "precision": 0.6450662739322534,
+        "recall": 0.6790697674418604,
+        "f1": 0.6616314199395771,
+        "support": 645
+      }
+    },
+    "confusion_matrix": [
+      [
+        4541,
+        123,
+        163
+      ],
+      [
+        139,
+        186,
+        78
+      ],
+      [
+        154,
+        53,
+        438
+      ]
+    ],
+    "labels": [
+      "CLEAN",
+      "OFFENSIVE",
+      "HATE"
+    ]
+  }
+}
