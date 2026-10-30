@@ -10,7 +10,6 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-import joblib
 import numpy as np
 import pandas as pd
 import sklearn
@@ -22,6 +21,7 @@ from sklearn.metrics import (
 )
 
 from src.data import LABEL_COL, LABEL_NAMES, TEXT_COL, load_vihsd
+from src.models import load_model
 from src.utils import get_logger, load_config
 
 logger = get_logger(__name__)
@@ -99,7 +99,7 @@ def evaluate_saved_model(
     """
     config = load_config(config_path)
     name = config["name"]
-    model = joblib.load(Path(models_dir) / f"{name}.joblib")
+    model = load_model(config, models_dir)
     df = load_vihsd(split, config["data_dir"])
     train_texts = load_vihsd("train", config["data_dir"])[TEXT_COL]
 

@@ -1,0 +1,20 @@
+# Chạy thử nhanh trên Kaggle để kiểm tra pipeline (500 câu train, 1 epoch).
+# Số liệu của cấu hình này KHÔNG dùng để so sánh hay báo cáo.
+name: visobert_smoke
+type: transformer
+seed: 42
+data_dir: data/raw/vihsd
+
+model:
+  pretrained: uitnlp/visobert
+  max_length: 128
+  class_weight: null
+
+training:
+  learning_rate: 2.0e-5
+  batch_size: 32
+  epochs: 1
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  fp16: true
+  max_train_samples: 500

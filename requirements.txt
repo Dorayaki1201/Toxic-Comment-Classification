@@ -1,5 +1,4 @@
-# Thư viện cho tuần 1 (dữ liệu + baseline). Đã kiểm tra trên Python 3.11.
-# Thư viện cho transformer (torch, transformers...) sẽ thêm ở tuần 2.
+# Đã kiểm tra trên Python 3.11.
 numpy==2.4.6
 pandas==3.0.6
 scikit-learn==1.9.1
@@ -7,6 +6,16 @@ PyYAML==6.0.3
 matplotlib==3.11.2
 datasets==5.0.1
 ipykernel==7.4.0
+
+# Transformer (tuần 2). Trên máy không có GPU, cài torch bản CPU trước cho nhẹ:
+#   pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+# Trên Kaggle dùng torch có sẵn (bản GPU); ghi lại phiên bản thật trong báo cáo mỗi lần chạy.
+# transformers phải là 4.x: bản 5.x tách token ViSoBERT sai (docs/decisions.md, D-016).
+torch==2.14.1
+transformers==4.57.6
+accelerate==1.15.0
+sentencepiece==0.2.2
+protobuf==7.36.2
 
 # Công cụ phát triển
 ruff==0.16.10
