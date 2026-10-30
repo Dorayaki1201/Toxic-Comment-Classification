@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 def fit_model(
     config: dict[str, Any], train: pd.DataFrame, dev: pd.DataFrame, models_dir: Path
 ) -> tuple[Any, dict[str, str]]:
-    """Train theo loại mô hình trong config; trả về mô hình và phiên bản thư viện đã dùng.
+    """Train theo loại mô hình trong config; trả về mô hình và thông tin môi trường để ghi báo cáo.
 
     Transformer dùng dev để giữ epoch tốt nhất (chọn mô hình), không bao giờ dùng test.
     """
@@ -33,8 +33,12 @@ def fit_model(
 
         checkpoints_dir = models_dir / f"{config['name']}_checkpoints"
         model = train_transformer(config, train, dev, checkpoints_dir)
-        versions = {"torch": torch.__version__, "transformers": transformers.__version__}
-        return model, versions
+        environment = {
+            "torch_version": torch.__version__,
+            "transformers_version": transformers.__version__,
+            "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
+        }
+        return model, environment
 
     model = build_tfidf_lr(config["features"], config["model"], seed=config["seed"])
     model.fit(train[TEXT_COL], train[LABEL_COL])
@@ -54,13 +58,13 @@ def run(
     train = load_vihsd("train", config["data_dir"])
     dev = load_vihsd("dev", config["data_dir"])
 
-    model, versions = fit_model(config, train, dev, Path(models_dir))
+    model, environment = fit_model(config, train, dev, Path(models_dir))
 
     report = {
         "config": name,
         "config_values": config,
         "sklearn_version": sklearn.__version__,
-        **{f"{library}_version": version for library, version in versions.items()},
+        **environment,
         "train": compute_metrics(
             train[LABEL_COL].tolist(), model.predict(train[TEXT_COL]).tolist()
         ),

@@ -163,6 +163,12 @@ def train_transformer(
     fp16, max_train_samples (null = dùng hết; đặt số nhỏ để chạy thử).
     """
     model_cfg, train_cfg, seed = config["model"], config["training"], config["seed"]
+    # Nhiều GPU: Trainer tự chia batch cho từng GPU, batch thật = batch_size x số GPU (D-018).
+    if torch.cuda.device_count() > 1:
+        raise RuntimeError(
+            f"Thấy {torch.cuda.device_count()} GPU; batch size thật sẽ bị nhân lên. "
+            "Chỉ dùng 1 GPU: đặt CUDA_VISIBLE_DEVICES=0 trước lệnh train."
+        )
     if not 0 <= train_cfg["warmup_ratio"] < 1:
         raise ValueError(f"warmup_ratio phải trong [0, 1): {train_cfg['warmup_ratio']}")
 

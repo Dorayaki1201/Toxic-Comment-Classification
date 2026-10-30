@@ -179,6 +179,24 @@ def test_predict_proba_on_empty_input_returns_empty_array(tiny_pretrained):
     assert classifier.predict_proba([]).shape == (0, 3)
 
 
+def test_training_refuses_multiple_gpus(tmp_path, tiny_pretrained, monkeypatch):
+    # Nhiều GPU làm batch thật = batch_size x số GPU mà không báo (D-018).
+    data_dir = tmp_path / "data"
+    write_toy_data(data_dir)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
+    config_path = write_config(tmp_path, transformer_config(tiny_pretrained, data_dir))
+    with pytest.raises(RuntimeError, match="CUDA_VISIBLE_DEVICES=0"):
+        run(config_path, tmp_path / "m", tmp_path / "r")
+
+
+def test_report_records_device(tmp_path, tiny_pretrained):
+    data_dir = tmp_path / "data"
+    write_toy_data(data_dir)
+    config_path = write_config(tmp_path, transformer_config(tiny_pretrained, data_dir))
+    report = run(config_path, tmp_path / "m", tmp_path / "r")
+    assert report["device"] == "cpu"
+
+
 @pytest.mark.network
 @pytest.mark.skipif(
     os.environ.get("RUN_NETWORK_TESTS") != "1", reason="cần mạng; đặt RUN_NETWORK_TESTS=1"
