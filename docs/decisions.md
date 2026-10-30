@@ -185,9 +185,10 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Ngày:** 30/10/2026
 - **Bối cảnh:** cấu hình B chuẩn hóa văn bản trước khi phân loại. Bình luận mạng có nhiều dạng "trông giống lách luật" nhưng là câu bình thường: thiếu khoảng trắng sau dấu câu ("ừ.thế", "hay!quá"), số tiền/giờ ("50k", "5h"), từ có hai chữ giống nhau liền nhau ("xoong"), đường link.
 - **Quyết định:** nguyên tắc "thà bỏ sót còn hơn sửa sai". Thứ tự cố định: NFC → số thay chữ → ký tự chèn → ký tự kéo dài → khoảng trắng; đường link được giữ nguyên.
-  - Số thay chữ: chỉ thay `0 1 3 4 $` khi nằm **giữa hai chữ cái** ("ch3t" → "chet"). Không thay "@" (phá email).
+  - Số thay chữ: chỉ thay `0 1 3 4 $` khi nằm **giữa hai chữ cái** ("ch3t" → "chet"). Không thay "@" (phá email). Token chứa **f/j/w/z** (chữ không có trong bảng chữ cái tiếng Việt) bị bỏ qua: đó là viết tắt, tiếng Anh hoặc mã ("j4f", mã video).
   - Ký tự chèn `. - _ * !`: chỉ bỏ khi **một bên là phụ âm đứng một mình** ("đ.iên", "n.g.u", "c.h.ế.t"); "!" được hiểu là "i" ("d!t" → "dit"). Hai bên đều là âm tiết thật thì giữ ("ừ.thế").
   - Ký tự kéo dài: chữ cái lặp **từ 3 lần** rút về 1 ("điiiiên" → "điên"); lặp 2 lần giữ nguyên để không phá "xoong", "boong".
   - Không viết thường, không đổi emoji, không thay từ (từ điển teencode là phần 3b).
 - **Lý do:** một luật sửa nhầm câu sạch làm hỏng cả những câu mô hình đang đoán đúng. Mỗi luật có test hai chiều ("phải sửa" và "không được đụng") và test chạy hai lần cho cùng kết quả.
-- **Đánh đổi / hạn chế đã biết:** bỏ sót "đii" (lặp 2), "quáaaa" chỉ thành "quáa" ("á" và "a" là hai ký tự khác nhau), "đm.mày" giữ nguyên, số ở cuối từ ("ng0") không được thay. Tác động trên dữ liệu thật đo bằng `python -m src.normalize` trên train.
+- **Đánh đổi / hạn chế đã biết:** bỏ sót "đii" (lặp 2), "quáaaa" chỉ thành "quáa" ("á" và "a" là hai ký tự khác nhau), "đm.mày" giữ nguyên, số ở cuối từ ("ng0") không được thay, teencode dùng f/j/w/z mà có số thay chữ cũng bị bỏ qua. Tác động trên dữ liệu thật đo bằng `python -m src.normalize` trên train.
+- **Sửa sau lần đo đầu trên train (30/10/2026):** đọc mẫu thấy luật số thay chữ biến viết tắt "j4f" thành "jaf" → thêm điều kiện f/j/w/z. Bản đo đầu còn áp từng luật lên cả câu, kể cả đường link, nên đếm sai (link YouTube bị tính là "đổi"); `normalize` thật vẫn giữ link. Công cụ đo giờ dùng chung `apply_outside_urls` với `normalize` để số đếm khớp hành vi thật.

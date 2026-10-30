@@ -3,6 +3,7 @@ import unicodedata
 import pytest
 
 from src.normalize import (
+    apply_outside_urls,
     collapse_whitespace,
     normalize,
     reduce_elongation,
@@ -46,6 +47,21 @@ def test_replace_digit_letters_fixes_digits_between_letters(text, expected):
 )
 def test_replace_digit_letters_leaves_numbers_alone(text):
     assert replace_digit_letters(text) == text
+
+
+@pytest.mark.parametrize("text", ["(j4f)", "kiss0fangel", "fSypgwW1L", "z1z", "W0W"])
+def test_replace_digit_letters_skips_tokens_with_non_vietnamese_letters(text):
+    # f/j/w/z không có trong bảng chữ cái tiếng Việt: viết tắt, tiếng Anh hoặc mã (D-021).
+    assert replace_digit_letters(text) == text
+
+
+def test_replace_digit_letters_checks_each_token_separately():
+    assert replace_digit_letters("j4f ch3t") == "j4f chet"
+
+
+def test_apply_outside_urls_protects_links_for_a_single_rule():
+    text = "b4n xem https://youtu.be/aB1cd nhé"
+    assert apply_outside_urls(text, replace_digit_letters) == "ban xem https://youtu.be/aB1cd nhé"
 
 
 @pytest.mark.parametrize(

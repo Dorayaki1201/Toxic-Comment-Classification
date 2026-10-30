@@ -7,6 +7,7 @@ Không viết thường, không đổi emoji, không thay từ (từ điển tee
 
 import re
 import unicodedata
+from collections.abc import Callable
 
 # Chữ cái (kể cả chữ có dấu tiếng Việt), không gồm số và dấu gạch dưới.
 LETTER = r"[^\W\d_]"
@@ -16,6 +17,10 @@ URL_PATTERN = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
 # Số/ký hiệu hay dùng thay chữ. Không có "@" để không phá địa chỉ email.
 DIGIT_LETTERS = {"0": "o", "1": "i", "3": "e", "4": "a", "$": "s"}
 DIGIT_BETWEEN_LETTERS = re.compile(rf"(?<={LETTER})[0134$](?={LETTER})")
+# Chữ không có trong bảng chữ cái tiếng Việt: token chứa chúng là viết tắt/tiếng Anh/mã
+# ("j4f", "fSypgwW1L"), không phải từ tiếng Việt bị thay số, nên không đụng (D-021).
+FOREIGN_LETTERS = set("fjwz")
+TOKEN = re.compile(r"\S+")
 
 # Ký tự chèn giữa các chữ: "!" được hiểu là chữ "i", các ký tự khác bị bỏ.
 INSERTED_CHARS = ".-_*!"
@@ -41,9 +46,17 @@ def _is_single_consonant(piece: str) -> bool:
 def replace_digit_letters(text: str) -> str:
     """Thay số/ký hiệu nằm giữa hai chữ cái bằng chữ: "ch3t" -> "chet", "b4n" -> "ban".
 
-    Số đứng đầu/cuối hoặc cạnh số khác không bị đụng ("5h", "50k", "2020").
+    Số đứng đầu/cuối hoặc cạnh số khác không bị đụng ("5h", "50k", "2020"), token có
+    chữ f/j/w/z cũng không bị đụng ("j4f").
     """
-    return DIGIT_BETWEEN_LETTERS.sub(lambda match: DIGIT_LETTERS[match.group()], text)
+
+    def fix_token(match: re.Match[str]) -> str:
+        token = match.group()
+        if FOREIGN_LETTERS & set(token.lower()):
+            return token
+        return DIGIT_BETWEEN_LETTERS.sub(lambda digit: DIGIT_LETTERS[digit.group()], token)
+
+    return TOKEN.sub(fix_token, text)
 
 
 def _merge_inserted(match: re.Match[str]) -> str:
@@ -87,18 +100,20 @@ def _normalize_segment(text: str) -> str:
     return reduce_elongation(text)
 
 
+def apply_outside_urls(text: str, rule: Callable[[str], str]) -> str:
+    """Áp `rule` lên phần văn bản nằm ngoài đường link; link giữ nguyên."""
+    segments = URL_PATTERN.split(text)
+    # re.split có nhóm bắt: phần tử ở vị trí lẻ là link, giữ nguyên.
+    return "".join(segment if i % 2 else rule(segment) for i, segment in enumerate(segments))
+
+
 def normalize(text: str) -> str:
     """Chuẩn hóa một bình luận theo thứ tự cố định; đường link được giữ nguyên.
 
     Thứ tự: NFC -> số thay chữ -> ký tự chèn -> ký tự kéo dài -> khoảng trắng.
     """
     text = unicodedata.normalize("NFC", text)
-    segments = URL_PATTERN.split(text)
-    # re.split có nhóm bắt: phần tử ở vị trí lẻ là link, giữ nguyên.
-    normalized = [
-        segment if i % 2 else _normalize_segment(segment) for i, segment in enumerate(segments)
-    ]
-    return collapse_whitespace("".join(normalized))
+    return collapse_whitespace(apply_outside_urls(text, _normalize_segment))
 
 
 RULES = {
@@ -120,16 +135,20 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
+    # Gộp khoảng trắng sẵn để mẫu in ra dễ đọc; normalize cũng làm bước này ở cuối.
     texts = load_vihsd("train", args.data_dir)[TEXT_COL].map(
-        lambda t: unicodedata.normalize("NFC", t)
+        lambda t: collapse_whitespace(unicodedata.normalize("NFC", t))
     )
     print(f"Số câu train: {len(texts)}")
     for name, rule in RULES.items():
-        changed = texts[texts.map(rule) != texts]
+        # Áp luật giống hệt trong normalize (bỏ qua link), để số đếm khớp hành vi thật.
+        after = texts.map(lambda t, rule=rule: apply_outside_urls(t, rule))
+        changed = texts[after != texts]
         print(f"\n== {name}: đổi {len(changed)} câu ({len(changed) / len(texts):.2%}) ==")
-        for text in changed.sample(min(args.samples, len(changed)), random_state=args.seed):
-            print(f"  {text!r}\n  -> {rule(text)!r}")
-    total = (texts.map(normalize) != texts.map(collapse_whitespace)).sum()
+        sample = changed.sample(min(args.samples, len(changed)), random_state=args.seed)
+        for i, text in sample.items():
+            print(f"  {text!r}\n  -> {after[i]!r}")
+    total = (texts.map(normalize) != texts).sum()
     print(f"\nTổng: normalize đổi {total} câu ({total / len(texts):.2%}), không tính khoảng trắng")
 
 
