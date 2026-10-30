@@ -32,9 +32,11 @@ Code nằm trên GitHub, dữ liệu nằm trong một Kaggle Dataset **riêng t
 ```
 
 ```bash
-# Ô 3: trỏ dữ liệu vào đúng chỗ config mong đợi (data/raw/vihsd), không sửa config
-# Đường dẫn input có thể khác; xem ở cột phải và sửa cho khớp.
-!mkdir -p data/raw && ln -s /kaggle/input/vihsd data/raw/vihsd && ls data/raw/vihsd
+# Ô 3: trỏ dữ liệu vào đúng chỗ config mong đợi (data/raw/vihsd), không sửa config.
+# Kaggle đổi cấu trúc /kaggle/input theo thời gian, nên tìm train.csv thay vì đoán đường dẫn.
+# Kết quả đúng: dòng cuối in ra dev.csv test.csv train.csv (nếu chỉ in "data/raw/vihsd" là liên kết hỏng).
+!find /kaggle/input -name "train.csv"
+!mkdir -p data/raw && rm -f data/raw/vihsd && ln -s "$(dirname "$(find /kaggle/input -name train.csv | head -1)")" data/raw/vihsd && ls data/raw/vihsd
 ```
 
 ```bash
@@ -51,6 +53,8 @@ Code nằm trên GitHub, dữ liệu nằm trong một Kaggle Dataset **riêng t
 # Ô 6: chạy thật (chỉ sau khi ô 5 ổn)
 !python -m src.train --config configs/visobert_base.yaml
 ```
+
+Ghi chú môi trường (lần chạy 30/10/2026): Kaggle dùng Python 3.13, torch 2.11.0+cu128. Ô 2 in cảnh báo xung đột `huggingface-hub` với `gradio`/`diffusers` cài sẵn: vô hại khi train vì không dùng hai thư viện này. **Rủi ro cho tuần 7:** `gradio` bản mới cần `huggingface-hub >= 1.16`, còn `transformers` 4.57 cần `< 1.0`; cần kiểm tra khi làm demo.
 
 ## 4. Lấy kết quả về máy
 
