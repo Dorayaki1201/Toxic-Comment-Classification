@@ -92,7 +92,8 @@ du-an-toxic-vi/
 ├── pyproject.toml         # cấu hình ruff/pytest
 ├── docs/
 │   ├── architecture.md    # sơ đồ hệ thống, luồng dữ liệu, trạng thái từng module
-│   └── decisions.md       # sổ quyết định kỹ thuật: bối cảnh, lựa chọn, lý do, đánh đổi
+│   ├── decisions.md       # sổ quyết định kỹ thuật: bối cảnh, lựa chọn, lý do, đánh đổi
+│   └── kaggle.md          # cách chạy huấn luyện trên Kaggle
 ├── data/
 │   └── README.md          # hướng dẫn tải dữ liệu, giấy phép (không commit dữ liệu)
 ├── notebooks/             # khám phá dữ liệu, thử nghiệm (đánh số 01_, 02_...)
@@ -101,7 +102,8 @@ du-an-toxic-vi/
 │   ├── keywords.py        # token đặc trưng theo nhãn (log-odds), chỉ dùng train
 │   ├── normalize.py       # chuẩn hóa teencode/viết tắt
 │   ├── noise.py           # sinh nhiễu
-│   ├── models.py          # baseline + transformer
+│   ├── models.py          # baseline + lưu/nạp mọi loại mô hình
+│   ├── transformer.py     # fine-tune ViSoBERT/PhoBERT (Trainer), chỉ import khi cần
 │   ├── train.py
 │   ├── evaluate.py        # macro-F1, robustness, bias, cross-dataset
 │   ├── moderation.py      # logic xử lý sau khi phát hiện
@@ -144,6 +146,11 @@ python -m src.train --config configs/tfidf_lr_wordchar.yaml
 
 # Đánh giá trên test: CHỈ một lần, sau khi đã chốt cấu hình bằng dev
 python -m src.evaluate --config configs/tfidf_lr_wordchar.yaml --split test
+
+# Transformer (cần transformers 4.x, D-016): đo số token trên train để chọn max_length
+python -m src.transformer --config configs/visobert_base.yaml
+# Huấn luyện transformer: chạy trên Kaggle theo docs/kaggle.md, cùng lệnh src.train
+# Test cần mạng (kiểm tra tokenizer ViSoBERT): RUN_NETWORK_TESTS=1 pytest -q -m network
 
 # Chạy demo
 python app/app.py
@@ -190,9 +197,9 @@ python app/app.py
 - [x] Baseline TF-IDF + SVM/LR, ghi macro-F1 trên dev/test
 - [x] Khởi tạo repo, cấu trúc thư mục, `requirements.txt`
 
-**Tuần 2: Mô hình transformer**
-- [ ] Tách từ + fine-tune PhoBERT
+**Tuần 2: Mô hình transformer** (làm ViSoBERT trước PhoBERT, D-015)
 - [ ] Fine-tune ViSoBERT
+- [ ] Tách từ + fine-tune PhoBERT
 - [ ] Xử lý mất cân bằng nhãn (class weight / focal loss / oversampling)
 
 **Tuần 3: Chuẩn hóa bằng luật**

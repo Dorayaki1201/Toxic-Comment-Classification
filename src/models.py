@@ -1,14 +1,52 @@
-"""Mô hình phân loại. Hiện có baseline TF-IDF (word và/hoặc char n-gram) + Logistic Regression."""
+"""Mô hình phân loại: baseline TF-IDF + Logistic Regression, và lưu/nạp mọi loại mô hình.
+
+Phần transformer nằm ở src/transformer.py, chỉ import khi config có type: transformer.
+Mọi mô hình trả về đều có predict(texts) và predict_proba(texts).
+"""
 
 import unicodedata
+from pathlib import Path
 from typing import Any
 
+import joblib
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import FeatureUnion, Pipeline
 
 from src.data import LABEL_NAMES
+
+MODEL_TYPES = ("tfidf_lr", "transformer")
+
+
+def model_type(config: dict[str, Any]) -> str:
+    """Loại mô hình trong config (mặc định tfidf_lr cho các config tuần 1)."""
+    kind = config.get("type", "tfidf_lr")
+    if kind not in MODEL_TYPES:
+        raise ValueError(f"type phải là một trong {MODEL_TYPES}, nhận được {kind!r}")
+    return kind
+
+
+def save_model(model: Any, config: dict[str, Any], models_dir: str | Path) -> Path:
+    """Lưu mô hình: tfidf_lr -> models/<tên>.joblib, transformer -> thư mục models/<tên>/."""
+    models_dir = Path(models_dir)
+    models_dir.mkdir(parents=True, exist_ok=True)
+    if model_type(config) == "transformer":
+        path = models_dir / config["name"]
+        model.save(path)
+    else:
+        path = models_dir / f"{config['name']}.joblib"
+        joblib.dump(model, path)
+    return path
+
+
+def load_model(config: dict[str, Any], models_dir: str | Path) -> Any:
+    """Nạp lại mô hình đã lưu bằng save_model."""
+    if model_type(config) == "transformer":
+        from src.transformer import TransformerClassifier
+
+        return TransformerClassifier.load(Path(models_dir) / config["name"])
+    return joblib.load(Path(models_dir) / f"{config['name']}.joblib")
 
 
 def basic_preprocess(text: str) -> str:

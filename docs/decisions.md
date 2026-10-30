@@ -119,3 +119,41 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Chạy lại test có vi phạm D-011 không:** không. Mô hình giữ nguyên, điểm toàn bộ test ra lại đúng 0.6431; kết quả chỉ dùng để phân tích, không dùng để chọn hay chỉnh mô hình.
 - **Kết quả (baseline):** 805/6680 câu test đã gặp (797 nếu so giống hệt). Phần chưa gặp: macro-F1 0.641 so với 0.643 toàn bộ, nên câu trùng gần như không thổi phồng điểm của baseline.
 - **Đánh đổi:** phần đã gặp chỉ có 41 OFFENSIVE và 43 HATE nên macro-F1 trên phần này dao động mạnh. Phương án bỏ: so giống hệt chuỗi (nhất quán với số 797 nhưng bỏ sót biến thể hoa/thường); notebook đo một lần (mô hình sau dễ quên đo).
+
+## D-015. Transformer dùng chung lệnh train/evaluate và chung giao diện với baseline
+
+- **Ngày:** 28/10/2026
+- **Bối cảnh:** tuần 2 thêm transformer (ViSoBERT trước, PhoBERT sau). `evaluate.py` (seen/unseen), `moderation.py` và demo cần dùng được mọi loại mô hình.
+- **Quyết định:**
+  - Config có trường `type: tfidf_lr | transformer`. `train.py` chọn nhánh theo trường này; `models.py` có `save_model`/`load_model` cho cả hai loại.
+  - Code riêng của transformer nằm ở `src/transformer.py`, chỉ import khi cần, nên baseline không phụ thuộc torch.
+  - Mọi mô hình có `predict(texts)` và `predict_proba(texts)`. Transformer được bọc trong `TransformerClassifier`.
+  - Huấn luyện bằng `Trainer` của HuggingFace: đo dev mỗi epoch, giữ epoch có macro-F1 dev cao nhất.
+  - Mất cân bằng nhãn: tùy chọn `class_weight: balanced` (cross-entropy có trọng số, cùng công thức với scikit-learn); so sánh ở phần 2b.
+- **Lý do:** một đường đi duy nhất thì báo cáo cùng định dạng, và các module phía sau không cần biết bên trong là mô hình gì. Thứ tự ViSoBERT trước vì không cần tách từ (hạ tầng đơn giản hơn) và được huấn luyện trên dữ liệu mạng xã hội, gần với ViHSD.
+- **Đánh đổi:** chọn epoch theo dev làm điểm dev hơi lạc quan; con số báo cáo cuối vẫn là test. Phương án bỏ: script riêng cho transformer (hai đường đi dễ lệch nhau); tự viết vòng lặp PyTorch (dễ sai, tốn thời gian).
+
+## D-016. Dùng transformers 4.57.6, không dùng 5.x
+
+- **Ngày:** 28/10/2026
+- **Bối cảnh:** với transformers 5.21, tokenizer của `uitnlp/visobert` tách "mèo đáng yêu" thành `▁m èo ▁đ áng ▁y êu`, trong khi thư viện `sentencepiece` gốc tách thành `▁mèo ▁đáng ▁yêu` (các token này có trong từ vựng). Văn bản không dấu dạng NFD còn bị mất dấu. Nguyên nhân: lớp `XLMRobertaTokenizer` của bản 5.x cố định thuật toán Unigram, còn file của ViSoBERT là sentencepiece **BPE**. Bản 5.x cũng bỏ tokenizer chậm (`use_fast` bị bỏ qua), nên không có cách tránh.
+- **Quyết định:** dùng transformers 4.57.6. Đã kiểm tra: cả tokenizer chậm và nhanh của bản này cho kết quả giống hệt `sentencepiece` gốc, mã token bằng mã sentencepiece + 1 (4 token đặc biệt đứng đầu, theo quy ước fairseq).
+- **Lý do:** lỗi này không báo gì; mô hình vẫn chạy nhưng nhận đầu vào khác hẳn lúc được huấn luyện sẵn, dẫn tới kết luận sai rằng ViSoBERT kém.
+- **Chặn tái diễn:** test `test_visobert_tokenizer_keeps_whole_vietnamese_syllables` (cần mạng, bật bằng `RUN_NETWORK_TESTS=1`), chạy trên Kaggle trước mỗi lần train và sau mỗi lần nâng cấp thư viện.
+- **Đánh đổi:** không dùng được tính năng mới của 5.x. Phương án bỏ: ở lại 5.x và tự viết bộ chuyển đổi tokenizer BPE (nhiều code khó kiểm chứng).
+
+## D-017. `max_length = 128` cho ViSoBERT
+
+- **Ngày:** 30/10/2026
+- **Bối cảnh:** đo số token (tokenizer ViSoBERT, kể cả token đặc biệt) trên 24036 câu **train** bằng `python -m src.transformer`: trung vị 11, phân vị 95% là 38, 99% là 69, dài nhất 7250. Tỷ lệ câu dài hơn mốc: 64 → 1.42%, 96 → 0.19%, 128 → 0.07%, 256 → 0.03%.
+- **Quyết định:** `max_length = 128`.
+- **Lý do:** chỉ khoảng 17 câu train bị cắt. Vì đệm theo từng batch (`DataCollatorWithPadding`), phần lớn batch vẫn ngắn, nên 128 chậm hơn 64 không đáng kể nhưng giữ nguyên được khoảng 320 câu. Lên 256 chỉ giữ thêm khoảng 10 câu.
+- **Đánh đổi:** câu bị cắt mất phần cuối; nội dung độc hại nằm cuối một câu rất dài sẽ bị bỏ qua. Chỉ đo trên train, không nhìn dev/test.
+
+## D-018. Huấn luyện transformer trên đúng 1 GPU, ghi tên GPU vào báo cáo
+
+- **Ngày:** 30/10/2026
+- **Bối cảnh:** lần chạy thử `visobert_smoke` trên Kaggle (GPU T4 x2) chỉ có 8 bước train cho 500 câu với `batch_size: 32` (lẽ ra 16). `Trainer` tự dùng cả 2 GPU và đưa mỗi GPU 32 câu, nên batch thật là 64, khác với config, và kết quả phụ thuộc số GPU của máy.
+- **Quyết định:** `train_transformer` báo lỗi nếu thấy hơn 1 GPU; trên Kaggle chạy với `CUDA_VISIBLE_DEVICES=0`. Báo cáo `dev_metrics.json` ghi thêm trường `device` (tên GPU).
+- **Lý do:** config phải mô tả đúng thí nghiệm, và cùng config phải cho cùng thiết lập trên mọi máy. Với mô hình cỡ base, 2 GPU kiểu này không nhanh hơn đáng kể.
+- **Đánh đổi:** không tận dụng GPU thứ hai. Phương án bỏ: chia `batch_size` cho số GPU (vẫn phụ thuộc phần cứng, khó giải thích hơn).

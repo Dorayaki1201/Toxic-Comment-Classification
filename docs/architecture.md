@@ -38,8 +38,9 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds | ✅ xong (kết quả: `data/README.md` mục 7) | `tests/test_keywords.py` |
 | `src/normalize.py` | chuẩn hóa teencode, viết tắt, ký tự kéo dài/chèn | ⬜ tuần 3 | |
 | `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
-| `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); PhoBERT, ViSoBERT (⬜ tuần 2) | 🟡 | `tests/test_models.py` |
-| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix (✅); test nhiễu, bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
+| `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
+| `src/transformer.py` | fine-tune ViSoBERT (✅ chạy trên Kaggle, dev 0.709 một seed: `reports/transformer_visobert.md`); PhoBERT (⬜ phần 2c) | 🟡 | `tests/test_transformer.py` |
+| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu, bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
 | `src/moderation.py` | logic xử lý sau phân loại | ⬜ tuần 7 | |
 | `app/app.py` | Gradio demo | ⬜ tuần 7 | |
 
@@ -86,6 +87,20 @@ python -m src.evaluate --config configs/X.yaml --split test   # chỉ chạy 1 l
 - `train.py` **không bao giờ** đọc test; chỉ `evaluate.py --split test` làm việc đó, và in cảnh báo.
 - `evaluate.py` đọc thêm train, nhưng chỉ để biết câu nào đã gặp; file chỉ số có 3 phần: toàn bộ, `seen_in_train`, `unseen_in_train` (D-014).
 
+### `src/transformer.py` (tuần 2, D-015, D-016)
+
+```
+config: type: transformer  ->  train.py gọi train_transformer(config, train, dev, checkpoints_dir)
+train_transformer(...)            -> TransformerClassifier   # Trainer: đo dev mỗi epoch, giữ epoch macro-F1 dev cao nhất
+TransformerClassifier.predict_proba(texts) -> ndarray (n, 3) # cùng giao diện với Pipeline scikit-learn
+TransformerClassifier.save(dir) / .load(dir)                # models/<tên>/ (không commit)
+compute_class_weights(labels)     -> list[float]             # "balanced", giống scikit-learn
+python -m src.transformer --config configs/X.yaml           # phân bố số token trên TRAIN để chọn max_length
+```
+
+- `save_model` / `load_model` trong `models.py` chọn cách lưu theo `type`, nên `evaluate.py` không cần biết loại mô hình.
+- Cần transformers 4.x (D-016). Huấn luyện thật chạy trên Kaggle theo `docs/kaggle.md`; test trên máy dùng một mô hình BERT tí hon tự tạo, không tải gì từ mạng.
+
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 
 | Việc | Được dùng | Không được dùng |
@@ -93,6 +108,8 @@ python -m src.evaluate --config configs/X.yaml --split test   # chỉ chạy 1 l
 | Xây từ điển teencode, thống kê từ khóa | train | dev, test |
 | Sinh nhiễu để tăng cường (cấu hình D) | train | dev, test |
 | Chọn siêu tham số, chọn mô hình | dev | test |
+| Chọn epoch tốt nhất của transformer | dev | test |
+| Chọn `max_length` | train (phân bố số token) | dev, test |
 | Tạo bộ test nhiễu | test (chỉ để đánh giá) | |
 | Báo cáo kết quả cuối | test, chạy một lần | |
 
