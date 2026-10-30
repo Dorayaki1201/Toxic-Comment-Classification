@@ -203,8 +203,8 @@ python app/app.py
 
 **Tuần 2: Mô hình transformer** (làm ViSoBERT trước PhoBERT, D-015)
 - [x] Fine-tune ViSoBERT (test 0.694 ± 0.004, 3 seed: `reports/transformer_visobert.md`)
-- [ ] Tách từ + fine-tune PhoBERT
 - [x] Xử lý mất cân bằng nhãn (class weight; so trên dev 3 seed, D-019)
+- PhoBERT: **hoãn** tới sau tuần 4 (D-020), xem mục tùy chọn ở tuần 6
 
 **Tuần 3: Chuẩn hóa bằng luật**
 - [ ] Xây từ điển teencode/viết tắt (chỉ từ dữ liệu train)
@@ -224,6 +224,7 @@ python app/app.py
 - [ ] Bảng so sánh A/B/C/D trên test gốc và test nhiễu
 - [ ] Cross-dataset, kiểm tra thiên lệch
 - [ ] Phân tích lỗi, (tùy chọn) tìm từ lóng mới
+- [ ] (Tùy chọn, D-020) Tách từ + fine-tune PhoBERT, so độ bền trước nhiễu với ViSoBERT
 
 **Tuần 7: Demo và đóng gói**
 - [ ] `moderation.py` + Gradio demo (kèm trang bình luận mô phỏng)
@@ -232,7 +233,7 @@ python app/app.py
 - [ ] Viết dòng CV với số liệu thật
 
 **Nếu thiếu thời gian, ưu tiên cắt theo thứ tự này (cắt từ dưới lên):**
-Tìm từ lóng mới → Cấu hình C (seq2seq) → ViTHSD/đa nhãn → trang bình luận mô phỏng. **Không cắt:** baseline, ViSoBERT/PhoBERT, chuẩn hóa bằng luật, bộ test nhiễu, cấu hình D, phân tích lỗi, demo.
+Tìm từ lóng mới → PhoBERT (D-020) → Cấu hình C (seq2seq) → ViTHSD/đa nhãn → trang bình luận mô phỏng. **Không cắt:** baseline, ViSoBERT, chuẩn hóa bằng luật, bộ test nhiễu, cấu hình D, phân tích lỗi, demo.
 
 ## 12. Logic xử lý sau khi phát hiện (`src/moderation.py`)
 

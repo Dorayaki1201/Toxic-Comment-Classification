@@ -170,3 +170,12 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Lý do:** đặt quy tắc trước khi thấy số để tránh chọn theo cảm tính; 3 seed là mức tối thiểu của CLAUDE.md mục 5. Một lần chạy khoảng 5 phút nên 6 lần vừa hạn mức GPU.
 - **Đánh đổi:** 3 seed vẫn ít, độ lệch chuẩn ước lượng còn thô. Phương án bỏ: 1 seed mỗi cấu hình (dễ chọn nhầm); 6 file config riêng cho từng seed (dễ lệch nhau).
 - **Kết quả trên dev (30/10/2026, ghi trước khi chạy test):** `visobert_base` 0.7121 ± 0.0046, `visobert_balanced` 0.7228 ± 0.0055. Chênh lệch 0.0107 lớn hơn độ lệch chuẩn lớn hơn (0.0055), nên không hòa: **chọn `visobert_balanced`**. Phần hơn chủ yếu ở F1 OFFENSIVE (0.5622 ± 0.0206 so với 0.5297 ± 0.0093); CLEAN và HATE gần như không đổi. Chạy lại `visobert_base` seed 42 cho đúng từng chữ số như lần đầu (0.709192...), xác nhận tái lập được trên cùng GPU.
+- **Test (chạy một lần):** `visobert_balanced` 0.6940 ± 0.0035 (phần chưa gặp trong train 0.6945 ± 0.0024), so với baseline 0.643. Chi tiết: `reports/transformer_visobert.md`.
+
+## D-020. Hoãn PhoBERT tới sau khi có bộ test nhiễu
+
+- **Ngày:** 30/10/2026
+- **Bối cảnh:** ViSoBERT đã xong (test 0.694 ± 0.004). PhoBERT không dùng trong sản phẩm cuối (demo, `moderation.py` dùng một mô hình); giá trị của nó chỉ nằm ở phép so sánh. PhoBERT cần tách từ (VnCoreNLP, chạy bằng Java) đúng như lúc tiền huấn luyện, thêm một chỗ có thể sai im lặng như D-016.
+- **Quyết định:** hoãn PhoBERT, chuyển sang chuẩn hóa teencode (tuần 3) và bộ test nhiễu (tuần 4). Làm lại PhoBERT sau tuần 4 nếu còn thời gian, dưới dạng so sánh **độ bền trước nhiễu** giữa mô hình học trên văn bản chuẩn (PhoBERT) và văn bản mạng xã hội (ViSoBERT).
+- **Lý do:** chuẩn hóa và bộ test nhiễu là điểm nhấn của dự án. So sánh PhoBERT với ViSoBERT trên test sạch nhiều khả năng lặp lại kết quả đã có trong bài báo ViSoBERT (cần kiểm tra lại); so sánh trên test nhiễu chỉ làm được sau tuần 4. Tiêu chí hoàn thành (CLAUDE.md mục 14) yêu cầu ít nhất một mô hình transformer, đã đạt.
+- **Đánh đổi:** chưa có số so sánh hai mô hình tiền huấn luyện. Nếu thiếu thời gian, PhoBERT là mục bị cắt.
