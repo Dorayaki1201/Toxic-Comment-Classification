@@ -179,3 +179,15 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Quyết định:** hoãn PhoBERT, chuyển sang chuẩn hóa teencode (tuần 3) và bộ test nhiễu (tuần 4). Làm lại PhoBERT sau tuần 4 nếu còn thời gian, dưới dạng so sánh **độ bền trước nhiễu** giữa mô hình học trên văn bản chuẩn (PhoBERT) và văn bản mạng xã hội (ViSoBERT).
 - **Lý do:** chuẩn hóa và bộ test nhiễu là điểm nhấn của dự án. So sánh PhoBERT với ViSoBERT trên test sạch nhiều khả năng lặp lại kết quả đã có trong bài báo ViSoBERT (cần kiểm tra lại); so sánh trên test nhiễu chỉ làm được sau tuần 4. Tiêu chí hoàn thành (CLAUDE.md mục 14) yêu cầu ít nhất một mô hình transformer, đã đạt.
 - **Đánh đổi:** chưa có số so sánh hai mô hình tiền huấn luyện. Nếu thiếu thời gian, PhoBERT là mục bị cắt.
+
+## D-021. Lớp luật của `normalize.py` (phần 3a): chỉ sửa ở chỗ chắc chắn là cố ý lách
+
+- **Ngày:** 30/10/2026
+- **Bối cảnh:** cấu hình B chuẩn hóa văn bản trước khi phân loại. Bình luận mạng có nhiều dạng "trông giống lách luật" nhưng là câu bình thường: thiếu khoảng trắng sau dấu câu ("ừ.thế", "hay!quá"), số tiền/giờ ("50k", "5h"), từ có hai chữ giống nhau liền nhau ("xoong"), đường link.
+- **Quyết định:** nguyên tắc "thà bỏ sót còn hơn sửa sai". Thứ tự cố định: NFC → số thay chữ → ký tự chèn → ký tự kéo dài → khoảng trắng; đường link được giữ nguyên.
+  - Số thay chữ: chỉ thay `0 1 3 4 $` khi nằm **giữa hai chữ cái** ("ch3t" → "chet"). Không thay "@" (phá email).
+  - Ký tự chèn `. - _ * !`: chỉ bỏ khi **một bên là phụ âm đứng một mình** ("đ.iên", "n.g.u", "c.h.ế.t"); "!" được hiểu là "i" ("d!t" → "dit"). Hai bên đều là âm tiết thật thì giữ ("ừ.thế").
+  - Ký tự kéo dài: chữ cái lặp **từ 3 lần** rút về 1 ("điiiiên" → "điên"); lặp 2 lần giữ nguyên để không phá "xoong", "boong".
+  - Không viết thường, không đổi emoji, không thay từ (từ điển teencode là phần 3b).
+- **Lý do:** một luật sửa nhầm câu sạch làm hỏng cả những câu mô hình đang đoán đúng. Mỗi luật có test hai chiều ("phải sửa" và "không được đụng") và test chạy hai lần cho cùng kết quả.
+- **Đánh đổi / hạn chế đã biết:** bỏ sót "đii" (lặp 2), "quáaaa" chỉ thành "quáa" ("á" và "a" là hai ký tự khác nhau), "đm.mày" giữ nguyên, số ở cuối từ ("ng0") không được thay. Tác động trên dữ liệu thật đo bằng `python -m src.normalize` trên train.

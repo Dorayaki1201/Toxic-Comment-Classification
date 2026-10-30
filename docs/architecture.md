@@ -36,7 +36,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/utils.py` | `set_seed`, `load_config`, `get_logger` | ✅ xong | `tests/test_utils.py` |
 | `src/data.py` | nạp ViHSD, kiểm tra định dạng, xử lý dòng lỗi | ✅ xong | `tests/test_data.py` |
 | `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds | ✅ xong (kết quả: `data/README.md` mục 7) | `tests/test_keywords.py` |
-| `src/normalize.py` | chuẩn hóa teencode, viết tắt, ký tự kéo dài/chèn | ⬜ tuần 3 | |
+| `src/normalize.py` | lớp luật: số thay chữ, ký tự chèn, ký tự kéo dài (✅ 3a, D-021); từ điển teencode (⬜ 3b); nối vào train/evaluate (⬜ 3c) | 🟡 | `tests/test_normalize.py` |
 | `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
 | `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⏸ hoãn, D-020) | 🟡 | `tests/test_transformer.py` |
@@ -101,6 +101,18 @@ python -m src.transformer --config configs/X.yaml           # phân bố số to
 - `save_model` / `load_model` trong `models.py` chọn cách lưu theo `type`, nên `evaluate.py` không cần biết loại mô hình.
 - Nhiều seed (D-019): `with_seed(config, seed)` trong `utils.py` tạo tên `<tên>_s<seed>`; `train` và `evaluate` nhận `--seed`. `summarize_seeds` trong `evaluate.py` gộp các báo cáo thành `reports/<tên>/<split>_summary.json` (trung bình ± độ lệch chuẩn mẫu). Checkpoint bị xóa sau khi train, chỉ giữ mô hình epoch tốt nhất.
 - Cần transformers 4.x (D-016). Huấn luyện thật chạy trên Kaggle theo `docs/kaggle.md`; test trên máy dùng một mô hình BERT tí hon tự tạo, không tải gì từ mạng.
+
+### `src/normalize.py` (tuần 3, D-021)
+
+```
+normalize(text) -> str               # NFC -> số thay chữ -> ký tự chèn -> kéo dài -> khoảng trắng; giữ nguyên link
+replace_digit_letters(text) -> str   # "ch3t" -> "chet" (chỉ khi số nằm giữa hai chữ cái)
+remove_inserted_chars(text) -> str   # "n.g.u" -> "ngu" (chỉ khi một bên là phụ âm đơn lẻ)
+reduce_elongation(text) -> str       # "điiiiên" -> "điên" (lặp từ 3 lần)
+python -m src.normalize              # đo trên TRAIN: mỗi luật đổi bao nhiêu câu + mẫu ngẫu nhiên
+```
+
+- Hàm thuần, không đọc file, không dùng dữ liệu; chưa được gọi trong train/evaluate (phần 3c).
 
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 
