@@ -108,7 +108,7 @@ python -m src.transformer --config configs/X.yaml           # phân bố số to
 normalize(text) -> str               # NFC -> số thay chữ -> ký tự chèn -> kéo dài -> khoảng trắng; giữ nguyên link
 replace_digit_letters(text) -> str   # "ch3t" -> "chet" (số giữa hai chữ cái; bỏ qua token có f/j/w/z, >= 2 số, > 7 ký tự)
 apply_outside_urls(text, rule) -> str # áp một luật, giữ nguyên link (dùng chung cho normalize và công cụ đo)
-remove_inserted_chars(text) -> str   # "n.g.u" -> "ngu" (một bên là phụ âm đơn lẻ; gạch ngang cần >= 2)
+remove_inserted_chars(text) -> str   # "n.g.u" -> "ngu" (một bên là phụ âm đơn lẻ; "-" và "*" cần >= 2)
 reduce_elongation(text) -> str       # "điiiiên" -> "điên" (lặp từ 3 lần; giữ "kkkk")
 python -m src.normalize              # đo trên TRAIN: mỗi luật đổi bao nhiêu câu + mẫu ngẫu nhiên
 ```

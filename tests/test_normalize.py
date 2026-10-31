@@ -88,6 +88,7 @@ def test_apply_outside_urls_protects_links_for_a_single_rule():
         ("đ.iên", "điên"),
         ("n-g-u", "ngu"),
         ("n_g_u", "ngu"),
+        ("n*g*u", "ngu"),  # "*" từ 2 lần: tách từng chữ, là ký tự chèn
         ("d!t", "dit"),
         ("đ.c.m", "đcm"),
         ("thằng n.g.u quá", "thằng ngu quá"),
@@ -113,7 +114,7 @@ def test_remove_inserted_chars_fixes_obfuscated_words(text, expected):
         "n-gu",
         "x*u",  # "*" che một chữ ("xấu"): bỏ đi sẽ thành từ khác ("xu")
         "ng*c",
-        "n*g*u",
+        "x*u n*g",  # mỗi chuỗi chỉ có một "*", dù cả câu có hai
     ],
 )
 def test_remove_inserted_chars_leaves_missing_space_and_normal_text(text):

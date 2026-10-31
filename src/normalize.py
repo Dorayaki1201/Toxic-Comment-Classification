@@ -26,9 +26,11 @@ MAX_SYLLABLE_LENGTH = 7
 TOKEN = re.compile(r"\S+")
 
 # Ký tự chèn giữa các chữ: "!" được hiểu là chữ "i", các ký tự khác bị bỏ.
-# Không có "*": "*" là ký tự che, đứng thay cho một chữ bị giấu ("x*u" = "xấu"); bỏ nó đi
-# sẽ ra một từ khác ("xu"). Khôi phục chữ bị che là việc của từ điển (phần 3b).
-INSERTED_CHARS = ".-_!"
+INSERTED_CHARS = ".-_*!"
+# Ký tự có hai nghĩa, chỉ coi là ký tự chèn khi xuất hiện từ 2 lần trong chuỗi ("n-g-u",
+# "n*g*u"). Một lần thì "-" thường là tên riêng ("K-pop"), "*" là ký tự che một chữ
+# ("x*u" = "xấu", bỏ đi sẽ thành "xu"); khôi phục chữ bị che là việc của từ điển (3b).
+NEEDS_REPEAT_CHARS = "-*"
 INSERTED_RUN = re.compile(rf"{LETTER}+(?:[{re.escape(INSERTED_CHARS)}]{LETTER}+)+")
 
 ELONGATED = re.compile(rf"({LETTER})\1{{2,}}", re.IGNORECASE)
@@ -71,12 +73,10 @@ def replace_digit_letters(text: str) -> str:
 def _merge_inserted(match: re.Match[str]) -> str:
     parts = re.split(rf"([{re.escape(INSERTED_CHARS)}])", match.group())
     pieces, separators = parts[0::2], parts[1::2]
-    # Một gạch ngang thường là tên riêng ("K-pop", "G-Dragon"); lách luật thì tách từng chữ.
-    lone_hyphen = separators.count("-") < 2
     result = pieces[0]
     for i, separator in enumerate(separators):
         left, right = pieces[i], pieces[i + 1]
-        if separator == "-" and lone_hyphen:
+        if separator in NEEDS_REPEAT_CHARS and separators.count(separator) < 2:
             result += separator + right
         elif _is_single_consonant(left) or _is_single_consonant(right):
             result += ("i" if separator == "!" else "") + right
@@ -89,7 +89,7 @@ def remove_inserted_chars(text: str) -> str:
     """Bỏ ký tự chèn giữa chữ khi một bên là phụ âm đơn lẻ: "đ.ịt" -> "địt", "n-g-u" -> "ngu".
 
     Giữ nguyên câu thiếu khoảng trắng sau dấu câu ("ừ.thế", "hay!quá") vì hai bên đều là
-    âm tiết thật, và gạch ngang đứng một mình ("K-pop") vì thường là tên riêng.
+    âm tiết thật; "-" và "*" chỉ xuất hiện một lần ("K-pop", "x*u") cũng giữ nguyên.
     """
     return INSERTED_RUN.sub(_merge_inserted, text)
 
