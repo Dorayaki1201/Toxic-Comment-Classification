@@ -208,7 +208,7 @@ python app/app.py
 
 **Tuần 3: Chuẩn hóa bằng luật**
 - [ ] Xây từ điển teencode/viết tắt (chỉ từ dữ liệu train)
-- [ ] Xử lý ký tự kéo dài, ký tự chèn, số thay chữ
+- [x] Xử lý ký tự kéo dài, ký tự chèn, số thay chữ (D-021, chấm mẫu trên train)
 - [ ] Test đơn vị cho `normalize.py`
 
 **Tuần 4: Sinh nhiễu và bộ test nhiễu**
