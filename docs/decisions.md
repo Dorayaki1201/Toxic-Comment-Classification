@@ -192,3 +192,9 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Lý do:** một luật sửa nhầm câu sạch làm hỏng cả những câu mô hình đang đoán đúng. Mỗi luật có test hai chiều ("phải sửa" và "không được đụng") và test chạy hai lần cho cùng kết quả.
 - **Đánh đổi / hạn chế đã biết:** bỏ sót "đii" (lặp 2), "quáaaa" chỉ thành "quáa" ("á" và "a" là hai ký tự khác nhau), "đm.mày" giữ nguyên, số ở cuối từ ("ng0") không được thay, teencode dùng f/j/w/z mà có số thay chữ cũng bị bỏ qua. Tác động trên dữ liệu thật đo bằng `python -m src.normalize` trên train.
 - **Sửa sau lần đo đầu trên train (30/10/2026):** đọc mẫu thấy luật số thay chữ biến viết tắt "j4f" thành "jaf" → thêm điều kiện f/j/w/z. Bản đo đầu còn áp từng luật lên cả câu, kể cả đường link, nên đếm sai (link YouTube bị tính là "đổi"); `normalize` thật vẫn giữ link. Công cụ đo giờ dùng chung `apply_outside_urls` với `normalize` để số đếm khớp hành vi thật.
+- **Sửa sau khi chấm mẫu (31/10/2026, seed 42):** số thay chữ đúng 5/8, ký tự chèn đúng 7/10. Lỗi chung: luật áp lên thứ không phải một âm tiết tiếng Việt. Thêm 4 điều kiện:
+  - số thay chữ bỏ qua token có **từ 2 chữ số** (mã như tên súng "M4A4");
+  - số thay chữ bỏ qua token **dài hơn 7 chữ/số**, vì âm tiết dài nhất là "nghiêng" (câu viết liền có "1" là số thật);
+  - gạch ngang chỉ bị bỏ khi có **từ 2 gạch** trong chuỗi ("n-g-u"); một gạch thường là tên riêng ("K-pop", tên ca sĩ dạng "K-…"), chấp nhận bỏ sót "n-gu";
+  - kéo dài bỏ qua token **chỉ gồm một chữ lặp** ("kkkk" là tiếng cười, rút về "k" thành teencode của "không").
+  - Vì các luật được sửa dựa trên chính các mẫu seed 42, precision báo cáo phải đo lại trên mẫu mới (seed khác).

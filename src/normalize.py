@@ -20,6 +20,9 @@ DIGIT_BETWEEN_LETTERS = re.compile(rf"(?<={LETTER})[0134$](?={LETTER})")
 # Chữ không có trong bảng chữ cái tiếng Việt: token chứa chúng là viết tắt/tiếng Anh/mã
 # ("j4f", "fSypgwW1L"), không phải từ tiếng Việt bị thay số, nên không đụng (D-021).
 FOREIGN_LETTERS = set("fjwz")
+# Âm tiết tiếng Việt dài nhất có 7 chữ ("nghiêng"): token dài hơn là câu viết liền,
+# tiếng Anh hoặc tên, không phải một chữ bị thay số.
+MAX_SYLLABLE_LENGTH = 7
 TOKEN = re.compile(r"\S+")
 
 # Ký tự chèn giữa các chữ: "!" được hiểu là chữ "i", các ký tự khác bị bỏ.
@@ -46,13 +49,17 @@ def _is_single_consonant(piece: str) -> bool:
 def replace_digit_letters(text: str) -> str:
     """Thay số/ký hiệu nằm giữa hai chữ cái bằng chữ: "ch3t" -> "chet", "b4n" -> "ban".
 
-    Số đứng đầu/cuối hoặc cạnh số khác không bị đụng ("5h", "50k", "2020"), token có
-    chữ f/j/w/z cũng không bị đụng ("j4f").
+    Số đứng đầu/cuối hoặc cạnh số khác không bị đụng ("5h", "50k", "2020"). Bỏ qua cả
+    token có chữ f/j/w/z ("j4f"), có từ 2 chữ số ("M4A4"), hoặc dài hơn một âm tiết.
     """
 
     def fix_token(match: re.Match[str]) -> str:
         token = match.group()
-        if FOREIGN_LETTERS & set(token.lower()):
+        if (
+            FOREIGN_LETTERS & set(token.lower())
+            or sum(char.isdigit() for char in token) >= 2
+            or sum(char.isalnum() for char in token) > MAX_SYLLABLE_LENGTH
+        ):
             return token
         return DIGIT_BETWEEN_LETTERS.sub(lambda digit: DIGIT_LETTERS[digit.group()], token)
 
@@ -62,10 +69,14 @@ def replace_digit_letters(text: str) -> str:
 def _merge_inserted(match: re.Match[str]) -> str:
     parts = re.split(rf"([{re.escape(INSERTED_CHARS)}])", match.group())
     pieces, separators = parts[0::2], parts[1::2]
+    # Một gạch ngang thường là tên riêng ("K-pop", "G-Dragon"); lách luật thì tách từng chữ.
+    lone_hyphen = separators.count("-") < 2
     result = pieces[0]
     for i, separator in enumerate(separators):
         left, right = pieces[i], pieces[i + 1]
-        if _is_single_consonant(left) or _is_single_consonant(right):
+        if separator == "-" and lone_hyphen:
+            result += separator + right
+        elif _is_single_consonant(left) or _is_single_consonant(right):
             result += ("i" if separator == "!" else "") + right
         else:
             result += separator + right
@@ -76,7 +87,7 @@ def remove_inserted_chars(text: str) -> str:
     """Bỏ ký tự chèn giữa chữ khi một bên là phụ âm đơn lẻ: "đ.ịt" -> "địt", "n-g-u" -> "ngu".
 
     Giữ nguyên câu thiếu khoảng trắng sau dấu câu ("ừ.thế", "hay!quá") vì hai bên đều là
-    âm tiết thật.
+    âm tiết thật, và gạch ngang đứng một mình ("K-pop") vì thường là tên riêng.
     """
     return INSERTED_RUN.sub(_merge_inserted, text)
 
@@ -84,9 +95,17 @@ def remove_inserted_chars(text: str) -> str:
 def reduce_elongation(text: str) -> str:
     """Rút chữ cái lặp từ 3 lần trở lên về 1: "điiiiên" -> "điên".
 
-    Lặp 2 lần được giữ vì có từ thật như "xoong", "boong" (D-021).
+    Lặp 2 lần được giữ vì có từ thật như "xoong", "boong" (D-021). Token chỉ gồm một chữ
+    lặp lại ("kkkk", "hhhh") là tiếng cười, giữ nguyên: rút về "k" sẽ thành "không".
     """
-    return ELONGATED.sub(r"\1", text)
+
+    def fix_token(match: re.Match[str]) -> str:
+        token = match.group()
+        if len({char.lower() for char in token if char.isalpha()}) == 1:
+            return token
+        return ELONGATED.sub(r"\1", token)
+
+    return TOKEN.sub(fix_token, text)
 
 
 def collapse_whitespace(text: str) -> str:

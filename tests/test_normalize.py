@@ -29,8 +29,12 @@ def test_reduce_elongation_fixes_repeated_letters(text, expected):
     assert reduce_elongation(text) == expected
 
 
-@pytest.mark.parametrize("text", ["xoong nồi", "boong tàu", "1000 đồng", "đii", "!!!", "😂😂😂"])
+@pytest.mark.parametrize(
+    "text",
+    ["xoong nồi", "boong tàu", "1000 đồng", "đii", "!!!", "😂😂😂", "kkkk", "Hhhhh", "kkkk:)))"],
+)
 def test_reduce_elongation_leaves_normal_text(text):
+    # "kkkk" là tiếng cười; rút về "k" sẽ thành teencode của "không".
     assert reduce_elongation(text) == text
 
 
@@ -53,6 +57,18 @@ def test_replace_digit_letters_leaves_numbers_alone(text):
 def test_replace_digit_letters_skips_tokens_with_non_vietnamese_letters(text):
     # f/j/w/z không có trong bảng chữ cái tiếng Việt: viết tắt, tiếng Anh hoặc mã (D-021).
     assert replace_digit_letters(text) == text
+
+
+@pytest.mark.parametrize("text", ["M4A4", "A4B4"])
+def test_replace_digit_letters_skips_codes_with_several_digits(text):
+    assert replace_digit_letters(text) == text
+
+
+def test_replace_digit_letters_skips_tokens_longer_than_a_syllable():
+    # Câu viết liền: "1" ở đây là số thật ("1 cái"), không phải chữ "i".
+    assert replace_digit_letters("toimua1caiao") == "toimua1caiao"
+    assert replace_digit_letters("ngh13ng") == "ngh13ng"  # 2 chữ số
+    assert replace_digit_letters("nghi3ng") == "nghieng"  # đúng 7 ký tự: vẫn sửa
 
 
 def test_replace_digit_letters_checks_each_token_separately():
@@ -92,6 +108,10 @@ def test_remove_inserted_chars_fixes_obfuscated_words(text, expected):
         "3.5",
         "anh_em",
         "Hà Nội.",
+        "K-pop",  # một gạch ngang: thường là tên riêng
+        "G-Dragon",
+        "K-icm ca sĩ",
+        "n-gu",
     ],
 )
 def test_remove_inserted_chars_leaves_missing_space_and_normal_text(text):
