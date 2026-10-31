@@ -26,7 +26,9 @@ MAX_SYLLABLE_LENGTH = 7
 TOKEN = re.compile(r"\S+")
 
 # Ký tự chèn giữa các chữ: "!" được hiểu là chữ "i", các ký tự khác bị bỏ.
-INSERTED_CHARS = ".-_*!"
+# Không có "*": "*" là ký tự che, đứng thay cho một chữ bị giấu ("x*u" = "xấu"); bỏ nó đi
+# sẽ ra một từ khác ("xu"). Khôi phục chữ bị che là việc của từ điển (phần 3b).
+INSERTED_CHARS = ".-_!"
 INSERTED_RUN = re.compile(rf"{LETTER}+(?:[{re.escape(INSERTED_CHARS)}]{LETTER}+)+")
 
 ELONGATED = re.compile(rf"({LETTER})\1{{2,}}", re.IGNORECASE)
