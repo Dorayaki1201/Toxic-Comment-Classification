@@ -70,15 +70,28 @@ def replace_digit_letters(text: str) -> str:
     return TOKEN.sub(fix_token, text)
 
 
+def _starts_with_vowel(piece: str) -> bool:
+    return _has_vowel(piece[:1])
+
+
+def _should_merge(separator: str, separators: list[str], left: str, right: str) -> bool:
+    if separator == "!" or separators.count(separator) >= 2:
+        # Tách từng chữ ("n.g.u") hoặc "!" thay chữ "i" ("d!t").
+        return _is_single_consonant(left) or _is_single_consonant(right)
+    if separator in NEEDS_REPEAT_CHARS:
+        return False
+    # Một dấu "." / "_": chỉ gộp khi nó tách phụ âm đầu khỏi phần vần ("đ.iên"). Phụ âm
+    # đơn trong teencode cũng là một chữ ("k" = không), nên "k.tết", "M.n" là thiếu dấu cách.
+    return _is_single_consonant(left) and _starts_with_vowel(right)
+
+
 def _merge_inserted(match: re.Match[str]) -> str:
     parts = re.split(rf"([{re.escape(INSERTED_CHARS)}])", match.group())
     pieces, separators = parts[0::2], parts[1::2]
     result = pieces[0]
     for i, separator in enumerate(separators):
         left, right = pieces[i], pieces[i + 1]
-        if separator in NEEDS_REPEAT_CHARS and separators.count(separator) < 2:
-            result += separator + right
-        elif _is_single_consonant(left) or _is_single_consonant(right):
+        if _should_merge(separator, separators, left, right):
             result += ("i" if separator == "!" else "") + right
         else:
             result += separator + right
@@ -88,8 +101,8 @@ def _merge_inserted(match: re.Match[str]) -> str:
 def remove_inserted_chars(text: str) -> str:
     """Bỏ ký tự chèn giữa chữ khi một bên là phụ âm đơn lẻ: "đ.ịt" -> "địt", "n-g-u" -> "ngu".
 
-    Giữ nguyên câu thiếu khoảng trắng sau dấu câu ("ừ.thế", "hay!quá") vì hai bên đều là
-    âm tiết thật; "-" và "*" chỉ xuất hiện một lần ("K-pop", "x*u") cũng giữ nguyên.
+    Giữ nguyên câu thiếu khoảng trắng sau dấu câu ("ừ.thế", "hay!quá", "k.tết") vì bên phải
+    là một chữ mới; "-" và "*" chỉ xuất hiện một lần ("K-pop", "x*u") cũng giữ nguyên.
     """
     return INSERTED_RUN.sub(_merge_inserted, text)
 

@@ -115,6 +115,10 @@ def test_remove_inserted_chars_fixes_obfuscated_words(text, expected):
         "x*u",  # "*" che một chữ ("xấu"): bỏ đi sẽ thành từ khác ("xu")
         "ng*c",
         "x*u n*g",  # mỗi chuỗi chỉ có một "*", dù cả câu có hai
+        "được k.tết rồi",  # thiếu dấu cách; "k" = "không" trong teencode
+        "hay k M.n",  # "M.n" = "mọi người"
+        "bậy.T like",
+        "c.bi",
     ],
 )
 def test_remove_inserted_chars_leaves_missing_space_and_normal_text(text):
