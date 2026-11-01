@@ -4,7 +4,16 @@ import pandas as pd
 import pytest
 
 from src.data import LABEL_COL, TEXT_COL
-from src.keywords import count_tokens_by_label, extract_ngrams, log_odds_by_label, tokenize
+from src.keywords import (
+    context_window,
+    count_tokens_by_label,
+    extract_ngrams,
+    find_lexicon_candidates,
+    is_lexicon_candidate,
+    log_odds_by_label,
+    sample_contexts,
+    tokenize,
+)
 
 
 def make_df(texts: list[str], labels: list[int]) -> pd.DataFrame:
@@ -93,3 +102,61 @@ def test_log_odds_output_columns_and_sorting(cat_dog_counts):
     assert list(result.columns) == ["label", "token", "count", "count_rest", "z"]
     for _, group in result.groupby("label"):
         assert group["z"].is_monotonic_decreasing
+
+
+# --- ứng viên từ điển teencode ---
+
+
+@pytest.mark.parametrize("token", ["đc", "vl", "k", "wa", "loz", "fb"])
+def test_is_lexicon_candidate_accepts_non_syllables(token):
+    assert is_lexicon_candidate(token)
+
+
+@pytest.mark.parametrize("token", ["không", "được", "ngu", "50k", "5h", "ko"])
+def test_is_lexicon_candidate_rejects_syllables_and_tokens_with_digits(token):
+    # "ko" có nguyên âm nên chỉ vào qua danh sách gõ tay, không qua bộ lọc tự động.
+    assert not is_lexicon_candidate(token)
+
+
+def test_find_lexicon_candidates_counts_by_label_and_applies_min_count():
+    df = make_df(["đc đc rồi", "đc nha", "dm mày", "hiếm xq"], labels=[0, 1, 2, 0])
+    result = find_lexicon_candidates(df, min_count=2, manual=())
+    assert result["token"].tolist() == ["đc"]
+    row = result.iloc[0]
+    assert (row["count"], row["CLEAN"], row["OFFENSIVE"], row["HATE"]) == (2, 1, 1, 0)
+
+
+def test_find_lexicon_candidates_adds_manual_tokens_only_if_frequent():
+    df = make_df(["ko biết", "ko sao", "hok nha"], labels=[0, 0, 0])
+    result = find_lexicon_candidates(df, min_count=2, manual=("ko", "hok", "vắng"))
+    assert result[["token", "source"]].values.tolist() == [["ko", "manual"]]
+
+
+def test_find_lexicon_candidates_auto_wins_over_manual_and_sorts_by_count():
+    df = make_df(["vl vl", "vl", "ko", "ko", "ko"], labels=[1, 1, 0, 0, 0])
+    result = find_lexicon_candidates(df, min_count=1, manual=("ko", "vl"))
+    assert result[["token", "source", "count"]].values.tolist() == [
+        ["ko", "manual", 3],
+        ["vl", "auto", 2],
+    ]
+    assert list(result.columns) == ["token", "source", "count", "CLEAN", "OFFENSIVE", "HATE"]
+
+
+def test_find_lexicon_candidates_empty_when_nothing_matches():
+    result = find_lexicon_candidates(make_df(["xin chào"], labels=[0]), min_count=1, manual=())
+    assert result.empty
+
+
+def test_sample_contexts_matches_whole_tokens_and_is_reproducible():
+    texts = pd.Series(["k biết", "50k thôi", "kẹo ngon", "K nha", "ok k"])
+    first = sample_contexts(texts, "k", k=10, seed=1)
+    assert sorted(first) == ["K nha", "k biết", "ok k"]
+    assert sample_contexts(texts, "k", k=2, seed=1) == sample_contexts(texts, "k", k=2, seed=1)
+
+
+def test_context_window_centers_on_whole_token():
+    text = "kẹo " * 30 + "k biết" + " xa" * 50
+    window = context_window(text, "k", width=10)
+    assert "k biết" in window
+    assert window.startswith("…") and window.endswith("…")
+    assert context_window("ngắn k", "k") == "ngắn k"

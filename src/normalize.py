@@ -39,7 +39,7 @@ WHITESPACE = re.compile(r"\s+")
 VOWELS = set("aeiouy")
 
 
-def _has_vowel(piece: str) -> bool:
+def has_vowel(piece: str) -> bool:
     """Có nguyên âm không (bỏ dấu trước khi xét: "ế" -> "e")."""
     base = unicodedata.normalize("NFD", piece.lower())
     return any(char in VOWELS for char in base)
@@ -47,7 +47,7 @@ def _has_vowel(piece: str) -> bool:
 
 def _is_single_consonant(piece: str) -> bool:
     """Một phụ âm đứng một mình, như "đ", "n": không thể là một âm tiết tiếng Việt."""
-    return len(piece) == 1 and not _has_vowel(piece)
+    return len(piece) == 1 and not has_vowel(piece)
 
 
 def replace_digit_letters(text: str) -> str:
@@ -71,7 +71,7 @@ def replace_digit_letters(text: str) -> str:
 
 
 def _starts_with_vowel(piece: str) -> bool:
-    return _has_vowel(piece[:1])
+    return has_vowel(piece[:1])
 
 
 def _should_merge(separator: str, separators: list[str], left: str, right: str) -> bool:
