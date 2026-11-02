@@ -1,0 +1,168 @@
+token	decision	replacement	agree	count	CLEAN	OFFENSIVE	HATE	source	note
+ko	keep	không	10/10	1214	925	66	223	manual	
+k	keep	không	9/10	868	719	45	104	auto	1/10 là tên riêng (K-ICM)
+v	reject			693	584	47	62	auto	8/10 là mặt cười ':v'
+đc	keep	được	10/10	618	492	47	79	auto	
+vl	keep	vãi lồn	10/10	428	291	103	34	auto	từ nhấn mạnh tục
+t	reject			418	343	34	41	auto	đại từ ngôi 1 nhưng không phân biệt được 'tôi'/'tao' (khác sắc thái)
+vn	keep	Việt Nam	9/10	340	228	16	96	auto	1/10 là tên miền .vn
+m	reject			332	210	23	99	auto	7/10 'mày', còn lại 'mình'/không rõ; thay sai làm mất tín hiệu HATE
+r	keep	rồi	10/10	310	261	14	35	auto	
+ng	keep	người	10/10	248	178	15	55	auto	
+fan	reject			238	213	6	19	auto	tiếng Anh/từ mượn, không phải teencode
+vs	keep	với	10/10	236	190	14	32	auto	
+j	reject			221	139	34	48	auto	8/10 'gì', còn lại tên riêng/'dì'
+ae	keep	anh em	10/10	213	202	7	4	manual	
+dc	keep	được	10/10	198	140	22	36	auto	
+ok	reject			183	173	5	5	manual	tiếng Anh/từ mượn, không phải teencode
+cmt	keep	bình luận	10/10	150	104	14	32	auto	
+đm	keep	địt mẹ	10/10	140	24	46	70	auto	
+h	keep	giờ	10/10	133	113	5	15	auto	
+c	reject			130	97	8	25	auto	8/10 'chị', còn lại 'cái'/chữ bị che
+cc	keep	con cặc	10/10	117	10	50	57	auto	
+b	reject			106	96	5	5	auto	8/10 'bạn', còn lại tên khu/không rõ
+l	keep	lồn	10/10	105	40	25	40	auto	
+lol	reject			99	16	34	49	manual	8/10 tục, còn lại 'LOL' tiếng Anh/tên game
+nc	reject			95	70	9	16	auto	7/10 'nước', còn lại 'nói chuyện'
+vcl	keep	vãi cả lồn	10/10	95	40	37	18	auto	
+đ	reject			93	47	23	23	auto	nhiều nghĩa (từ tục, chữ bị che, 'được')
+d	reject			83	68	4	11	auto	phần lớn là mặt cười ':D'
+lun	keep	luôn	10/10	83	76	3	4	manual	
+fb	keep	facebook	10/10	82	73	3	6	auto	
+z	keep	vậy	9/10	82	64	6	12	auto	1/10 nằm trong mặt cười
+kkk	reject			81	76	1	4	auto	tiếng cười, giữ nguyên (D-021)
+mn	keep	mọi người	10/10	80	74	1	5	auto	
+dm	keep	địt mẹ	10/10	79	12	32	35	auto	
+iu	keep	yêu	10/10	75	68	2	5	manual	
+ak	keep	à	9/10	74	51	5	18	manual	1/10 là tên riêng (AK)
+kg	reject			65	46	3	16	auto	8/10 'không', có 'kilogram'
+n	reject			65	45	11	9	auto	nhiều nghĩa
+trc	keep	trước	10/10	64	55	4	5	auto	
+ah	keep	à	9/10	61	44	1	16	manual	1/10 là 'anh'
+vc	reject			61	30	12	19	auto	5/10 'vãi cả', còn lại 'Việt Cộng', 'vợ chồng'
+cs	keep	cộng sản	9/10	60	19	0	41	auto	1/10 không rõ nghĩa
+jack	reject			58	52	0	6	auto	tên riêng
+s	reject			52	47	2	3	auto	5/10 'sao', còn lại ký hiệu/đơn vị
+tr	reject			51	44	1	6	auto	'triệu' và 'trời' gần ngang nhau
+bt	reject			50	42	3	5	auto	7/10 'biết', còn lại 'bình thường'
+bh	keep	bây giờ	9/10	48	38	5	5	auto	1/10 là 'bao giờ'
+bn	reject			48	41	3	4	auto	7/10 'bạn', còn lại 'bao nhiêu', 'bệnh nhân'
+facebook	reject			48	43	1	4	auto	tiếng Anh/từ mượn, không phải teencode
+kh	keep	không	10/10	46	42	1	3	auto	
+dlv	keep	dư luận viên	10/10	44	14	4	26	auto	
+oke	reject			44	39	3	2	manual	tiếng Anh/từ mượn, không phải teencode
+wa	reject			43	38	1	4	auto	8/10 'quá', còn lại 'qua'
+kk	reject			42	41	1	0	auto	tiếng cười, giữ nguyên (D-021)
+hông	keep	không	10/10	41	36	1	4	manual	'hông' cũng là từ thật (bộ phận cơ thể), không gặp trong mẫu
+cl	keep	cái lồn	10/10	40	3	23	14	auto	
+from	reject			40	40	0	0	auto	tiếng Anh/từ mượn, không phải teencode
+loz	keep	lồn	10/10	40	3	10	27	auto	
+view	reject			40	27	3	10	auto	tiếng Anh/từ mượn, không phải teencode
+mv	reject			39	36	2	1	auto	viết tắt từ mượn, không có dạng đầy đủ tiếng Việt thông dụng
+lm	keep	làm	9/10	38	33	0	5	auto	1/10 là 'lắm'
+cmn	keep	con mẹ nó	10/10	37	18	14	5	auto	
+hk	keep	không	9/10	36	31	3	2	auto	1/10 là 'học'
+kkkk	reject			36	32	1	3	auto	tiếng cười, giữ nguyên (D-021)
+ntn	keep	như thế nào	10/10	36	31	0	5	auto	
+hn	reject			35	24	5	6	auto	8/10 'Hà Nội', còn lại tên người
+with	reject			35	35	0	0	auto	tiếng Anh/từ mượn, không phải teencode
+ny	keep	người yêu	10/10	34	33	1	0	manual	
+mk	keep	mình	10/10	32	29	1	2	auto	
+ms	keep	mới	10/10	32	27	3	2	auto	
+nhìu	keep	nhiều	10/10	32	18	5	9	manual	
+vd	reject			31	27	2	2	auto	'video' và 'ví dụ'
+cmnr	keep	con mẹ nó rồi	10/10	30	15	11	4	auto	
+cx	keep	cũng	10/10	30	23	3	4	auto	
+mc	reject			29	25	0	4	auto	viết tắt từ mượn, không có dạng đầy đủ tiếng Việt thông dụng
+clm	keep	cái lồn mẹ	10/10	28	1	18	9	auto	
+cm	reject			28	9	10	9	auto	nhiều nghĩa ('cách mạng', từ tục)
+vkl	keep	vãi cả lồn	10/10	28	14	4	10	auto	
+ns	keep	nói	10/10	27	21	0	6	auto	
+tq	keep	Trung Quốc	10/10	27	15	2	10	auto	
+vv	reject			27	21	5	1	auto	phần lớn là mặt cười ':vv', còn lại 'vân vân', 'vui vẻ'
+haiz	reject			25	21	2	2	auto	thán từ
+refund	reject			25	25	0	0	auto	tên riêng
+th	reject			25	18	1	6	auto	'thằng' và 'thôi'
+xl	keep	xin lỗi	10/10	25	9	6	10	auto	
+fake	reject			24	17	5	2	auto	tiếng Anh/từ mượn, không phải teencode
+hok	keep	không	10/10	23	15	1	7	manual	
+mng	keep	mọi người	10/10	23	22	0	1	auto	
+đk	reject			22	17	1	4	auto	8/10 'được', còn lại 'đăng ký'
+ch	reject			21	13	4	4	auto	nhiều nghĩa
+free	reject			21	18	1	2	auto	tiếng Anh/từ mượn, không phải teencode
+nhiu	reject			21	16	3	2	manual	'nhiêu' và 'nhiều'
+tp	reject			20	11	0	9	auto	8/10 'thành phố', còn lại tên riêng/không rõ
+zô	keep	vô	10/10	20	16	1	3	auto	
+show	reject			19	16	1	2	auto	tiếng Anh/từ mượn, không phải teencode
+tg	reject			19	13	1	5	auto	'thời gian', 'thế giới', 'thằng'
+zậy	keep	vậy	10/10	19	16	1	2	auto	
+full	reject			18	18	0	0	auto	tiếng Anh/từ mượn, không phải teencode
+https	reject			18	18	0	0	auto	phần của đường link
+lgbt	reject			18	15	0	3	auto	viết tắt từ mượn, không có dạng đầy đủ tiếng Việt thông dụng
+mh	reject			18	16	0	2	auto	'Minh Hiếu' (tên) và 'mình'
+mik	keep	mình	10/10	18	16	0	2	manual	
+p	reject			18	18	0	0	auto	nhiều nghĩa
+sbtc	reject			18	17	0	1	auto	tên riêng
+zui	keep	vui	10/10	18	17	0	1	auto	
+chj	keep	chị	10/10	17	15	0	2	auto	
+ck	keep	chồng	10/10	17	16	1	0	auto	
+nv	reject			17	14	0	3	auto	'nhân viên' và 'nhân vật'
+zai	keep	trai	10/10	17	16	1	0	auto	
+đcm	keep	địt con mẹ	10/10	17	0	9	8	auto	
+bik	keep	biết	10/10	16	12	2	2	manual	
+bít	keep	biết	9/10	16	12	3	1	manual	1/10 là từ thật 'bưng bít'; rủi ro sửa sai
+dkm	keep	địt con mẹ	10/10	16	3	6	7	auto	
+face	keep	facebook	9/10	16	10	1	5	auto	1/10 không rõ nghĩa
+off	reject			16	16	0	0	auto	tiếng Anh/từ mượn, không phải teencode
+zalo	reject			16	16	0	0	auto	tên riêng
+gd	reject			15	11	0	4	auto	'giáo dục' và 'gia đình'
+lz	keep	lồn	10/10	15	3	4	8	auto	
+sg	keep	Sài Gòn	10/10	15	10	1	4	auto	
+tv	reject			15	11	0	4	auto	tên kênh và 'tư vấn'
+ziên	reject			15	14	1	0	auto	nhại giọng ('tất ziên'), nhiều nghĩa
+đt	keep	điện thoại	10/10	15	14	1	0	auto	
+review	reject			14	13	1	0	auto	tiếng Anh/từ mượn, không phải teencode
+thg	keep	thằng	9/10	14	8	1	5	auto	1/10 là 'thương gia'
+g	reject			13	11	0	2	auto	nhiều nghĩa
+gg	reject			13	12	0	1	auto	'google' và 'good game'
+ml	reject			13	2	1	10	auto	8/10 tục, còn lại 'mililit'/không rõ
+nx	keep	nữa	10/10	13	10	1	2	auto	
+pr	reject			13	10	3	0	auto	viết tắt từ mượn, không có dạng đầy đủ tiếng Việt thông dụng
+xh	keep	xã hội	10/10	13	4	0	9	auto	
+đkm	keep	địt con mẹ	10/10	13	1	5	7	auto	
+hcm	keep	Hồ Chí Minh	10/10	12	6	1	5	auto	
+kp	reject			12	11	1	0	auto	6/10 'không phải', còn lại 'Kpop', 'kết bạn'
+qq	keep	quần què	10/10	12	0	9	3	auto	
+rf	reject			12	12	0	0	auto	tên riêng
+tk	keep	thằng	9/10	12	8	1	3	auto	1/10 là 'tài khoản'
+vcc	keep	vãi con cặc	10/10	12	4	5	3	auto	
+win	reject			12	11	0	1	auto	tiếng Anh/từ mượn, không phải teencode
+www	reject			12	12	0	0	auto	phần của đường link
+cđ	reject			11	6	2	3	auto	'cộng đồng' và 'cờ đỏ'
+dcm	keep	địt con mẹ	10/10	11	1	6	4	auto	
+dk	reject			11	8	1	2	auto	nhiều nghĩa
+formosa	reject			11	5	0	6	auto	tên riêng
+kb	reject			11	8	3	0	auto	'kết bạn' và 'khai báo'
+kkkkk	reject			11	9	1	1	auto	tiếng cười, giữ nguyên (D-021)
+new	reject			11	11	0	0	auto	tiếng Anh/từ mượn, không phải teencode
+nt	reject			11	9	1	1	auto	'nhắn tin' và tên riêng
+pc	reject			11	11	0	0	auto	viết tắt từ mượn, không có dạng đầy đủ tiếng Việt thông dụng
+ph	reject			11	10	0	1	auto	nhiều nghĩa, phần lớn nằm trong link
+sml	keep	sấp mặt lồn	10/10	11	5	3	3	auto	
+sp	reject			11	11	0	0	auto	'sản phẩm' và 'support' (game)
+stt	keep	trạng thái	10/10	11	8	1	2	auto	
+thp	keep	Tân Hiệp Phát	10/10	11	5	0	6	auto	tên doanh nghiệp
+thpt	keep	trung học phổ thông	10/10	11	11	0	0	auto	
+vnch	keep	Việt Nam Cộng hòa	10/10	11	5	0	6	auto	
+xhcn	keep	xã hội chủ nghĩa	10/10	11	6	1	4	auto	
+đb	keep	đầu buồi	10/10	11	1	6	4	auto	
+đg	reject			11	10	0	1	auto	7/10 'đang', còn lại 'đường'
+hp	keep	hạnh phúc	10/10	10	9	1	0	auto	
+ji	keep	gì	9/10	10	7	1	2	auto	1/10 là tên riêng
+kkkkkk	reject			10	6	0	4	auto	tiếng cười, giữ nguyên (D-021)
+nh	reject			10	8	1	1	auto	nhiều nghĩa
+of	reject			10	9	1	0	auto	tiếng Anh/từ mượn, không phải teencode
+official	reject			10	6	1	3	auto	tiếng Anh/từ mượn, không phải teencode
+pew	reject			10	8	1	1	auto	tên riêng
+sv	reject			10	6	1	3	auto	'sinh viên' và 'server'
+đmm	keep	địt mẹ mày	10/10	10	2	2	6	auto	

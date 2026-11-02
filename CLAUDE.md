@@ -109,6 +109,7 @@ du-an-toxic-vi/
 │   ├── moderation.py      # logic xử lý sau khi phát hiện
 │   └── utils.py           # seed, logging, đọc/ghi cấu hình
 ├── configs/               # file cấu hình thí nghiệm (yaml)
+├── resources/             # tài nguyên tự tuyển chọn, có commit (teencode.tsv, D-022)
 ├── app/
 │   └── app.py             # Gradio demo (+ trang bình luận mô phỏng)
 ├── tests/                 # test cho normalize, noise, moderation
