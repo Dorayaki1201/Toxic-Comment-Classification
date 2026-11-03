@@ -43,10 +43,11 @@ VOWELS = set("aeiouy")
 # Từ điển teencode xây từ train, đã chấm tay (resources/README.md, D-022).
 DEFAULT_LEXICON_PATH = Path(__file__).resolve().parents[1] / "resources" / "teencode.tsv"
 # Token đứng ngay sau các ký tự này không được thay: mặt cười (":v", ":D", "=]]z", ":))z"),
-# tên miền ("abc.vn"), tag ("@hp"), đường dẫn ("a/b").
-NOT_AFTER = ":;=)]./@"
-# Một chuỗi chữ cái đứng riêng: không dính chữ/số hai bên ("5h", "kong" không khớp "h", "ko").
-LEXICON_TOKEN = re.compile(rf"(?<![\w{re.escape(NOT_AFTER)}]){LETTER}+(?!\w)")
+# tên miền ("abc.vn"), tag ("@hp"), đường dẫn ("a/b"), tên có gạch nối ("Jack-k").
+NOT_AFTER = ":;=)]./@-"
+# Một chuỗi chữ cái đứng riêng: không dính chữ/số hai bên ("5h", "kong" không khớp "h", "ko"),
+# không có gạch nối ngay sau ("K-ICM" là tên ca sĩ, đo trên train seed 2026, D-022).
+LEXICON_TOKEN = re.compile(rf"(?<![\w{re.escape(NOT_AFTER)}]){LETTER}+(?![\w-])")
 
 
 def has_vowel(piece: str) -> bool:
@@ -177,23 +178,37 @@ def load_lexicon(path: str | Path = DEFAULT_LEXICON_PATH) -> dict[str, str]:
     return lexicon
 
 
-def replace_teencode(text: str, lexicon: dict[str, str]) -> str:
-    """Thay token đứng riêng có trong từ điển bằng dạng đầy đủ: "Ko biết" -> "Không biết".
+def find_teencode(text: str, lexicon: dict[str, str]) -> list[tuple[int, int, str]]:
+    """Vị trí các token sẽ bị thay: danh sách (đầu, cuối, dạng đầy đủ), theo thứ tự trong câu.
 
-    Tra không phân biệt hoa/thường; token viết hoa chữ đầu thì kết quả cũng viết hoa chữ đầu.
-    Bỏ qua token trong link, token dính số ("5h") và token sau ký tự trong NOT_AFTER (":v").
+    Tra không phân biệt hoa/thường; token viết hoa chữ đầu thì dạng đầy đủ cũng viết hoa chữ
+    đầu. Bỏ qua token trong link, token dính số ("5h") và token sau ký tự trong NOT_AFTER (":v").
     """
+    spans = []
+    offset = 0
+    for i, segment in enumerate(URL_PATTERN.split(text)):
+        # Phần tử ở vị trí lẻ là link (giống apply_outside_urls): không tìm trong đó.
+        if i % 2 == 0:
+            for match in LEXICON_TOKEN.finditer(segment):
+                token = match.group()
+                replacement = lexicon.get(token.lower())
+                if replacement is None:
+                    continue
+                if token[0].isupper():
+                    replacement = replacement[0].upper() + replacement[1:]
+                spans.append((offset + match.start(), offset + match.end(), replacement))
+        offset += len(segment)
+    return spans
 
-    def fix_token(match: re.Match[str]) -> str:
-        token = match.group()
-        replacement = lexicon.get(token.lower())
-        if replacement is None:
-            return token
-        if token[0].isupper():
-            return replacement[0].upper() + replacement[1:]
-        return replacement
 
-    return apply_outside_urls(text, lambda segment: LEXICON_TOKEN.sub(fix_token, segment))
+def replace_teencode(text: str, lexicon: dict[str, str]) -> str:
+    """Thay token đứng riêng có trong từ điển bằng dạng đầy đủ: "Ko biết" -> "Không biết"."""
+    pieces = []
+    last = 0
+    for start, end, replacement in find_teencode(text, lexicon):
+        pieces += [text[last:start], replacement]
+        last = end
+    return "".join(pieces) + text[last:]
 
 
 def normalize(text: str, lexicon: dict[str, str] | None = None) -> str:
@@ -220,18 +235,21 @@ def main() -> None:
     """Đo trên TRAIN: mỗi luật đổi bao nhiêu câu, kèm mẫu ngẫu nhiên để đọc kiểm tra."""
     import argparse
 
-    from src.data import TEXT_COL, load_vihsd
+    from src.data import LABEL_COL, LABEL_NAMES, TEXT_COL, load_vihsd
 
     parser = argparse.ArgumentParser(description="Thống kê tác động của chuẩn hóa trên train.")
     parser.add_argument("--data-dir", default="data/raw/vihsd")
     parser.add_argument("--samples", type=int, default=10, help="số ví dụ in ra cho mỗi luật")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--lexicon", nargs="?", const=DEFAULT_LEXICON_PATH, help="đo thêm lớp từ điển (3b)"
+    )
     args = parser.parse_args()
 
     # Gộp khoảng trắng sẵn để mẫu in ra dễ đọc; normalize cũng làm bước này ở cuối.
-    texts = load_vihsd("train", args.data_dir)[TEXT_COL].map(
-        lambda t: collapse_whitespace(unicodedata.normalize("NFC", t))
-    )
+    train = load_vihsd("train", args.data_dir)
+    labels = train[LABEL_COL].map(LABEL_NAMES)
+    texts = train[TEXT_COL].map(lambda t: collapse_whitespace(unicodedata.normalize("NFC", t)))
     print(f"Số câu train: {len(texts)}")
     for name, rule in RULES.items():
         # Áp luật giống hệt trong normalize (bỏ qua link), để số đếm khớp hành vi thật.
@@ -243,6 +261,35 @@ def main() -> None:
             print(f"  {text!r}\n  -> {after[i]!r}")
     total = (texts.map(normalize) != texts).sum()
     print(f"\nTổng: normalize đổi {total} câu ({total / len(texts):.2%}), không tính khoảng trắng")
+    if args.lexicon:
+        _report_lexicon(texts, labels, load_lexicon(args.lexicon), args.samples, args.seed)
+
+
+def _report_lexicon(texts, labels, lexicon: dict[str, str], samples: int, seed: int) -> None:
+    """In tác động của từ điển trên văn bản đã qua lớp luật, kèm mẫu từng lần thay để chấm."""
+    import pandas as pd
+
+    ruled = texts.map(normalize)
+    rows = [
+        (i, ruled[i][start:end].lower(), replacement, ruled[i], start, end)
+        for i in ruled.index
+        for start, end, replacement in find_teencode(ruled[i], lexicon)
+    ]
+    found = pd.DataFrame(rows, columns=["row", "token", "replacement", "text", "start", "end"])
+    changed = found["row"].unique()
+    print(f"\n== Từ điển ({len(lexicon)} mục): đổi {len(changed)} câu", end=" ")
+    print(f"({len(changed) / len(texts):.2%}), {len(found)} lần thay ==")
+    print("Tỉ lệ câu bị đổi theo nhãn:")
+    print((labels[changed].value_counts() / labels.value_counts()).round(4).to_string())
+    print("Token thay nhiều nhất:")
+    print(found["token"].value_counts().head(15).to_string())
+
+    sample = found.sample(min(samples, len(found)), random_state=seed)
+    print(f"\nMẫu {len(sample)} lần thay (seed {seed}), [token -> dạng đầy đủ]:")
+    for r in sample.itertuples():
+        left = r.text[max(0, r.start - 60) : r.start]
+        right = r.text[r.end : r.end + 60]
+        print(f"  row={r.row} {left}[{r.text[r.start : r.end]} -> {r.replacement}]{right}")
 
 
 if __name__ == "__main__":

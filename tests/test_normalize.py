@@ -5,6 +5,7 @@ import pytest
 from src.normalize import (
     apply_outside_urls,
     collapse_whitespace,
+    find_teencode,
     load_lexicon,
     normalize,
     reduce_elongation,
@@ -177,6 +178,7 @@ LEXICON = {"ko": "không", "vn": "Việt Nam", "v": "vậy", "z": "vậy", "h": 
         ("(ko)", "(không)"),
         ("ko,ae ơi", "không,anh em ơi"),
         ("đi z?", "đi vậy?"),
+        ("ko - z", "không - vậy"),  # gạch nối có khoảng trắng: vẫn là token riêng
     ],
 )
 def test_replace_teencode_fixes_whole_tokens(text, expected):
@@ -199,12 +201,22 @@ def test_replace_teencode_fixes_whole_tokens(text, expected):
         "@ko",  # tag
         "a/ko",
         "xem https://ko.vn/ko nhé",  # trong link (chữ "nhé" không có trong từ điển)
-        "https://youtu.be/xem-ko-h",  # "-" không chặn: chỉ việc bảo vệ link giữ được
+        "https://youtu.be/x?ko&h",  # "?", "&" không chặn: chỉ việc bảo vệ link giữ được
+        "K-ICM",  # tên có gạch nối
+        "ko-",
+        "x-ko",
         "được k.tết",  # "k" không có trong LEXICON; "." bên trái thì cũng không thay
     ],
 )
 def test_replace_teencode_leaves_other_text(text):
     assert replace_teencode(text, LEXICON) == text
+
+
+def test_find_teencode_returns_positions_in_original_text():
+    text = "xem https://a.com/ko Ko z"
+    spans = find_teencode(text, LEXICON)
+    assert spans == [(21, 23, "Không"), (24, 25, "vậy")]
+    assert [text[start:end] for start, end, _ in spans] == ["Ko", "z"]
 
 
 def test_replace_teencode_skips_token_after_dot_even_if_in_lexicon():
