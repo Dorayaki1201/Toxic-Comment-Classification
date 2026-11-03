@@ -5,10 +5,12 @@ import pytest
 from src.normalize import (
     apply_outside_urls,
     collapse_whitespace,
+    load_lexicon,
     normalize,
     reduce_elongation,
     remove_inserted_chars,
     replace_digit_letters,
+    replace_teencode,
 )
 
 # Mỗi luật có hai nhóm test: "phải sửa" (cố ý lách) và "không được đụng" (câu bình thường).
@@ -158,3 +160,103 @@ def test_normalize_is_idempotent(text):
     # Chạy hai lần phải ra cùng kết quả: nếu không, luật đang tạo ra chỗ cần sửa mới.
     once = normalize(text)
     assert normalize(once) == once
+
+
+# Từ điển nhỏ viết trong test (D-006): test không phụ thuộc file resources/teencode.tsv.
+LEXICON = {"ko": "không", "vn": "Việt Nam", "v": "vậy", "z": "vậy", "h": "giờ", "ae": "anh em"}
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("ko biết", "không biết"),
+        ("Ko biết", "Không biết"),  # giữ chữ hoa đầu
+        ("KO", "Không"),
+        ("vn mình", "Việt Nam mình"),
+        ("thế ko.", "thế không."),
+        ("(ko)", "(không)"),
+        ("ko,ae ơi", "không,anh em ơi"),
+        ("đi z?", "đi vậy?"),
+    ],
+)
+def test_replace_teencode_fixes_whole_tokens(text, expected):
+    assert replace_teencode(text, LEXICON) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "kong",  # chỉ thay nguyên token, không thay một phần
+        "vnexpress",
+        "5h chiều",  # dính số
+        "h5",
+        "hay :v",  # mặt cười
+        ":vv",
+        "=]]z",
+        ":))z",
+        "ok ;v",
+        "abc.vn",  # tên miền
+        "@ko",  # tag
+        "a/ko",
+        "xem https://ko.vn/ko nhé",  # trong link (chữ "nhé" không có trong từ điển)
+        "https://youtu.be/xem-ko-h",  # "-" không chặn: chỉ việc bảo vệ link giữ được
+        "được k.tết",  # "k" không có trong LEXICON; "." bên trái thì cũng không thay
+    ],
+)
+def test_replace_teencode_leaves_other_text(text):
+    assert replace_teencode(text, LEXICON) == text
+
+
+def test_replace_teencode_skips_token_after_dot_even_if_in_lexicon():
+    # Đánh đổi đã chấp nhận: "x.ko" có thể là thiếu dấu cách, nhưng cũng giống tên miền.
+    assert replace_teencode("thế.ko", LEXICON) == "thế.ko"
+
+
+def test_normalize_applies_lexicon_after_rules():
+    # "kooo" được lớp luật rút về "ko" trước, rồi mới tra từ điển.
+    assert normalize("  kooo   biết  ", LEXICON) == "không biết"
+    assert normalize("k.o biết", LEXICON) == "không biết"
+
+
+def test_normalize_without_lexicon_keeps_teencode():
+    # Mặc định chỉ chạy lớp luật: công cụ tìm ứng viên (keywords.py) cần thấy "ko".
+    assert normalize("ko biết") == "ko biết"
+    assert normalize("ko biết", {}) == "ko biết"
+
+
+@pytest.mark.parametrize("text", ["ko biết z", "Ko ae ơi :v", "vn vn vn", "kooo h"])
+def test_normalize_with_lexicon_is_idempotent(text):
+    once = normalize(text, LEXICON)
+    assert normalize(once, LEXICON) == once
+
+
+def _write_tsv(path, rows):
+    header = "token\tdecision\treplacement\n"
+    path.write_text(header + "".join("\t".join(row) + "\n" for row in rows), encoding="utf-8")
+    return path
+
+
+def test_load_lexicon_keeps_only_keep_rows(tmp_path):
+    path = _write_tsv(tmp_path / "lex.tsv", [("ko", "keep", "không"), ("m", "reject", "")])
+    assert load_lexicon(path) == {"ko": "không"}
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [("ko", "keep", "")],  # keep thiếu replacement
+        [("ko", "keep", "không"), ("ko", "reject", "")],  # token trùng
+        [("ae", "keep", "anh em"), ("em", "keep", "em ấy")],  # thay dây chuyền
+    ],
+)
+def test_load_lexicon_rejects_broken_file(tmp_path, rows):
+    with pytest.raises(ValueError):
+        load_lexicon(_write_tsv(tmp_path / "lex.tsv", rows))
+
+
+def test_load_lexicon_reads_committed_file():
+    # Số mục keep sau khi chấm (01/11/2026); sửa số này khi duyệt lại từ điển.
+    lexicon = load_lexicon()
+    assert len(lexicon) == 83
+    assert lexicon["ko"] == "không"
+    assert all(token == token.lower() for token in lexicon)

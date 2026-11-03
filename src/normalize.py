@@ -1,13 +1,15 @@
-"""Chuẩn hóa văn bản bằng luật (cấu hình B), lớp không cần từ điển.
+"""Chuẩn hóa văn bản bằng luật (cấu hình B): lớp luật (3a) và lớp từ điển teencode (3b).
 
 Nguyên tắc: thà bỏ sót còn hơn sửa sai. Một luật sửa nhầm câu bình thường sẽ làm hỏng
 cả những câu sạch, nên mỗi luật chỉ chạy ở chỗ chắc chắn là cố ý lách.
-Không viết thường, không đổi emoji, không thay từ (từ điển teencode là phần riêng).
+Không viết thường, không đổi emoji. Từ điển chỉ chạy khi được truyền vào `normalize`.
 """
 
+import csv
 import re
 import unicodedata
 from collections.abc import Callable
+from pathlib import Path
 
 # Chữ cái (kể cả chữ có dấu tiếng Việt), không gồm số và dấu gạch dưới.
 LETTER = r"[^\W\d_]"
@@ -37,6 +39,14 @@ ELONGATED = re.compile(rf"({LETTER})\1{{2,}}", re.IGNORECASE)
 WHITESPACE = re.compile(r"\s+")
 
 VOWELS = set("aeiouy")
+
+# Từ điển teencode xây từ train, đã chấm tay (resources/README.md, D-022).
+DEFAULT_LEXICON_PATH = Path(__file__).resolve().parents[1] / "resources" / "teencode.tsv"
+# Token đứng ngay sau các ký tự này không được thay: mặt cười (":v", ":D", "=]]z", ":))z"),
+# tên miền ("abc.vn"), tag ("@hp"), đường dẫn ("a/b").
+NOT_AFTER = ":;=)]./@"
+# Một chuỗi chữ cái đứng riêng: không dính chữ/số hai bên ("5h", "kong" không khớp "h", "ko").
+LEXICON_TOKEN = re.compile(rf"(?<![\w{re.escape(NOT_AFTER)}]){LETTER}+(?!\w)")
 
 
 def has_vowel(piece: str) -> bool:
@@ -141,13 +151,62 @@ def apply_outside_urls(text: str, rule: Callable[[str], str]) -> str:
     return "".join(segment if i % 2 else rule(segment) for i, segment in enumerate(segments))
 
 
-def normalize(text: str) -> str:
+def load_lexicon(path: str | Path = DEFAULT_LEXICON_PATH) -> dict[str, str]:
+    """Đọc các mục `keep` của từ điển teencode: {"ko": "không", ...}.
+
+    Báo lỗi nếu file sai: mục keep thiếu dạng đầy đủ, token trùng, hoặc dạng đầy đủ chứa
+    một token khác của từ điển (sẽ thay dây chuyền, normalize hết idempotent).
+    """
+    lexicon: dict[str, str] = {}
+    seen: set[str] = set()
+    with open(path, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f, delimiter="\t"):
+            token = row["token"].lower()
+            if token in seen:
+                raise ValueError(f"Token trùng trong từ điển: {token!r}")
+            seen.add(token)
+            if row["decision"] != "keep":
+                continue
+            if not row["replacement"]:
+                raise ValueError(f"Mục keep thiếu replacement: {token!r}")
+            lexicon[token] = row["replacement"]
+    for token, replacement in lexicon.items():
+        chained = set(replacement.lower().split()) & set(lexicon)
+        if chained:
+            raise ValueError(f"{token!r} -> {replacement!r} chứa token của từ điển: {chained}")
+    return lexicon
+
+
+def replace_teencode(text: str, lexicon: dict[str, str]) -> str:
+    """Thay token đứng riêng có trong từ điển bằng dạng đầy đủ: "Ko biết" -> "Không biết".
+
+    Tra không phân biệt hoa/thường; token viết hoa chữ đầu thì kết quả cũng viết hoa chữ đầu.
+    Bỏ qua token trong link, token dính số ("5h") và token sau ký tự trong NOT_AFTER (":v").
+    """
+
+    def fix_token(match: re.Match[str]) -> str:
+        token = match.group()
+        replacement = lexicon.get(token.lower())
+        if replacement is None:
+            return token
+        if token[0].isupper():
+            return replacement[0].upper() + replacement[1:]
+        return replacement
+
+    return apply_outside_urls(text, lambda segment: LEXICON_TOKEN.sub(fix_token, segment))
+
+
+def normalize(text: str, lexicon: dict[str, str] | None = None) -> str:
     """Chuẩn hóa một bình luận theo thứ tự cố định; đường link được giữ nguyên.
 
-    Thứ tự: NFC -> số thay chữ -> ký tự chèn -> ký tự kéo dài -> khoảng trắng.
+    Thứ tự: NFC -> số thay chữ -> ký tự chèn -> ký tự kéo dài -> từ điển (nếu có) ->
+    khoảng trắng. Không truyền `lexicon` thì chỉ chạy lớp luật (dùng khi tìm ứng viên).
     """
     text = unicodedata.normalize("NFC", text)
-    return collapse_whitespace(apply_outside_urls(text, _normalize_segment))
+    text = apply_outside_urls(text, _normalize_segment)
+    if lexicon:
+        text = replace_teencode(text, lexicon)
+    return collapse_whitespace(text)
 
 
 RULES = {
