@@ -25,5 +25,5 @@ python -m src.keywords --min-count 10 --contexts 10 --seed 42
 | `note` | lý do loại, hoặc ngữ cảnh lệch nghĩa của mục `keep` |
 
 **Lưu ý:**
-- `agree` được đo trên chính các ngữ cảnh dùng để quyết định, nên **cao hơn thực tế**. Precision thật phải đo lại trên mẫu khác (seed khác).
+- `agree` được đo trên chính các ngữ cảnh dùng để quyết định, nên **cao hơn thực tế**. Precision thật đo lại trên mẫu khác: 0.98 (98/100 lần thay, seed 2027), chi tiết ở D-022 và `reports/teencode/`.
 - Không dùng file này để sinh nhiễu ở `noise.py` (D-022), nếu không cấu hình B sẽ được chấm trên chính từ điển của nó.

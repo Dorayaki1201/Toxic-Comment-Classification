@@ -8,7 +8,8 @@ Tài liệu này mô tả hệ thống gồm những khối nào, dữ liệu ch
 flowchart LR
     RAW["data/raw/vihsd/*.csv<br/>(không commit)"] --> DATA["src/data.py<br/>nạp + kiểm tra + xử lý dòng lỗi"]
     DATA -->|train| KW["src/keywords.py<br/>token đặc trưng theo nhãn"]
-    KW -.->|"gợi ý từ điển teencode"| NORM
+    KW -->|"ứng viên, chấm tay"| LEX["resources/teencode.tsv<br/>từ điển teencode (có commit)"]
+    LEX --> NORM
     DATA -->|train| NORM["src/normalize.py<br/>chuẩn hóa teencode"]
     DATA -->|train| NOISE["src/noise.py<br/>sinh nhiễu"]
     DATA -->|dev, test| EVAL["src/evaluate.py<br/>macro-F1, robustness,<br/>bias, cross-dataset"]
@@ -35,8 +36,8 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 |---|---|---|---|
 | `src/utils.py` | `set_seed`, `load_config`, `get_logger` | ✅ xong | `tests/test_utils.py` |
 | `src/data.py` | nạp ViHSD, kiểm tra định dạng, xử lý dòng lỗi | ✅ xong | `tests/test_data.py` |
-| `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds | ✅ xong (kết quả: `data/README.md` mục 7) | `tests/test_keywords.py` |
-| `src/normalize.py` | lớp luật: số thay chữ, ký tự chèn, ký tự kéo dài (✅ 3a, D-021); từ điển teencode (⬜ 3b); nối vào train/evaluate (⬜ 3c) | 🟡 | `tests/test_normalize.py` |
+| `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds (✅, kết quả: `data/README.md` mục 7); ứng viên từ điển teencode (✅ D-022) | ✅ xong | `tests/test_keywords.py` |
+| `src/normalize.py` | lớp luật: số thay chữ, ký tự chèn, ký tự kéo dài (✅ 3a, D-021); từ điển teencode (✅ 3b, D-022, precision 0.98 trên train); nối vào train/evaluate (⬜ 3c) | 🟡 | `tests/test_normalize.py` |
 | `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
 | `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⏸ hoãn, D-020) | 🟡 | `tests/test_transformer.py` |
@@ -68,7 +69,14 @@ count_tokens_by_label(df, n)                -> dict[int, Counter] # số bình l
 log_odds_by_label(counts, prior_strength, min_count) -> DataFrame # label, token, count, count_rest, z
 ```
 
-- **Đầu vào:** chỉ tập train từ `load_vihsd("train")`.
+```
+is_lexicon_candidate(token)                 -> bool               # chỉ chữ cái, không nguyên âm hoặc có f/j/w/z
+find_lexicon_candidates(df, min_count, manual) -> DataFrame       # token, source, count, CLEAN, OFFENSIVE, HATE
+sample_contexts(texts, token, k, seed)      -> list[str]          # k câu ngẫu nhiên chứa token, để chấm nghĩa
+python -m src.keywords --min-count 10 --contexts 10 --seed 42     # in ứng viên + ngữ cảnh (chỉ TRAIN)
+```
+
+- **Đầu vào:** chỉ tập train từ `load_vihsd("train")`. Ứng viên từ điển được đếm trên train đã qua `normalize` **không** truyền từ điển (lớp 3a).
 - **Tách token chỉ dùng cho phân tích**, không đưa vào mô hình (không mâu thuẫn D-005).
 
 ### `src/models.py`, `src/train.py`, `src/evaluate.py` (baseline)
@@ -102,18 +110,23 @@ python -m src.transformer --config configs/X.yaml           # phân bố số to
 - Nhiều seed (D-019): `with_seed(config, seed)` trong `utils.py` tạo tên `<tên>_s<seed>`; `train` và `evaluate` nhận `--seed`. `summarize_seeds` trong `evaluate.py` gộp các báo cáo thành `reports/<tên>/<split>_summary.json` (trung bình ± độ lệch chuẩn mẫu). Checkpoint bị xóa sau khi train, chỉ giữ mô hình epoch tốt nhất.
 - Cần transformers 4.x (D-016). Huấn luyện thật chạy trên Kaggle theo `docs/kaggle.md`; test trên máy dùng một mô hình BERT tí hon tự tạo, không tải gì từ mạng.
 
-### `src/normalize.py` (tuần 3, D-021)
+### `src/normalize.py` (tuần 3, D-021, D-022)
 
 ```
-normalize(text) -> str               # NFC -> số thay chữ -> ký tự chèn -> kéo dài -> khoảng trắng; giữ nguyên link
+normalize(text, lexicon=None) -> str # NFC -> số thay chữ -> ký tự chèn -> kéo dài -> từ điển (nếu có) -> khoảng trắng; giữ link
+load_lexicon(path) -> dict[str, str] # mục keep của resources/teencode.tsv; file sai thì ValueError
+find_teencode(text, lexicon) -> list[(start, end, replacement)]  # vị trí sẽ thay (dùng chung cho thay và đo)
+replace_teencode(text, lexicon) -> str  # "Ko biết" -> "Không biết"; bỏ qua link, ":v", "5h", "abc.vn", "K-ICM"
 replace_digit_letters(text) -> str   # "ch3t" -> "chet" (số giữa hai chữ cái; bỏ qua token có f/j/w/z, >= 2 số, > 7 ký tự)
 apply_outside_urls(text, rule) -> str # áp một luật, giữ nguyên link (dùng chung cho normalize và công cụ đo)
 remove_inserted_chars(text) -> str   # "n.g.u" -> "ngu" (một bên là phụ âm đơn lẻ; "-" và "*" cần >= 2; một "." chỉ gộp kiểu "đ.iên")
 reduce_elongation(text) -> str       # "điiiiên" -> "điên" (lặp từ 3 lần; giữ "kkkk")
 python -m src.normalize              # đo trên TRAIN: mỗi luật đổi bao nhiêu câu + mẫu ngẫu nhiên
+python -m src.normalize --lexicon --samples 100 --seed 2027  # đo thêm từ điển: câu đổi theo nhãn + mẫu từng lần thay
 ```
 
-- Hàm thuần, không đọc file, không dùng dữ liệu; chưa được gọi trong train/evaluate (phần 3c).
+- Các hàm chuẩn hóa là hàm thuần; chỉ `load_lexicon` đọc file. Từ điển được truyền vào dưới dạng `dict`, nên test dùng từ điển nhỏ viết trong code (D-006).
+- Chưa được gọi trong train/evaluate (phần 3c). Khi làm cấu hình B phải gọi `normalize(text, load_lexicon())`.
 
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 
@@ -121,6 +134,7 @@ python -m src.normalize              # đo trên TRAIN: mỗi luật đổi bao 
 |---|---|---|
 | Xây từ điển teencode, thống kê từ khóa | train | dev, test |
 | Sinh nhiễu để tăng cường (cấu hình D) | train | dev, test |
+| Sinh nhiễu (cả tăng cường lẫn bộ test nhiễu) | bảng biến đổi xây độc lập | `resources/teencode.tsv` (đánh giá vòng tròn, D-022) |
 | Chọn siêu tham số, chọn mô hình | dev | test |
 | Chọn epoch tốt nhất của transformer | dev | test |
 | Chọn `max_length` | train (phân bố số token) | dev, test |
