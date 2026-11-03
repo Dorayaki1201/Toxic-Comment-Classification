@@ -1,13 +1,15 @@
-"""Chuẩn hóa văn bản bằng luật (cấu hình B), lớp không cần từ điển.
+"""Chuẩn hóa văn bản bằng luật (cấu hình B): lớp luật (3a) và lớp từ điển teencode (3b).
 
 Nguyên tắc: thà bỏ sót còn hơn sửa sai. Một luật sửa nhầm câu bình thường sẽ làm hỏng
 cả những câu sạch, nên mỗi luật chỉ chạy ở chỗ chắc chắn là cố ý lách.
-Không viết thường, không đổi emoji, không thay từ (từ điển teencode là phần riêng).
+Không viết thường, không đổi emoji. Từ điển chỉ chạy khi được truyền vào `normalize`.
 """
 
+import csv
 import re
 import unicodedata
 from collections.abc import Callable
+from pathlib import Path
 
 # Chữ cái (kể cả chữ có dấu tiếng Việt), không gồm số và dấu gạch dưới.
 LETTER = r"[^\W\d_]"
@@ -38,8 +40,17 @@ WHITESPACE = re.compile(r"\s+")
 
 VOWELS = set("aeiouy")
 
+# Từ điển teencode xây từ train, đã chấm tay (resources/README.md, D-022).
+DEFAULT_LEXICON_PATH = Path(__file__).resolve().parents[1] / "resources" / "teencode.tsv"
+# Token đứng ngay sau các ký tự này không được thay: mặt cười (":v", ":D", "=]]z", ":))z"),
+# tên miền ("abc.vn"), tag ("@hp"), đường dẫn ("a/b"), tên có gạch nối ("Jack-k").
+NOT_AFTER = ":;=)]./@-"
+# Một chuỗi chữ cái đứng riêng: không dính chữ/số hai bên ("5h", "kong" không khớp "h", "ko"),
+# không có gạch nối ngay sau ("K-ICM" là tên ca sĩ, đo trên train seed 2026, D-022).
+LEXICON_TOKEN = re.compile(rf"(?<![\w{re.escape(NOT_AFTER)}]){LETTER}+(?![\w-])")
 
-def _has_vowel(piece: str) -> bool:
+
+def has_vowel(piece: str) -> bool:
     """Có nguyên âm không (bỏ dấu trước khi xét: "ế" -> "e")."""
     base = unicodedata.normalize("NFD", piece.lower())
     return any(char in VOWELS for char in base)
@@ -47,7 +58,7 @@ def _has_vowel(piece: str) -> bool:
 
 def _is_single_consonant(piece: str) -> bool:
     """Một phụ âm đứng một mình, như "đ", "n": không thể là một âm tiết tiếng Việt."""
-    return len(piece) == 1 and not _has_vowel(piece)
+    return len(piece) == 1 and not has_vowel(piece)
 
 
 def replace_digit_letters(text: str) -> str:
@@ -71,7 +82,7 @@ def replace_digit_letters(text: str) -> str:
 
 
 def _starts_with_vowel(piece: str) -> bool:
-    return _has_vowel(piece[:1])
+    return has_vowel(piece[:1])
 
 
 def _should_merge(separator: str, separators: list[str], left: str, right: str) -> bool:
@@ -141,13 +152,76 @@ def apply_outside_urls(text: str, rule: Callable[[str], str]) -> str:
     return "".join(segment if i % 2 else rule(segment) for i, segment in enumerate(segments))
 
 
-def normalize(text: str) -> str:
+def load_lexicon(path: str | Path = DEFAULT_LEXICON_PATH) -> dict[str, str]:
+    """Đọc các mục `keep` của từ điển teencode: {"ko": "không", ...}.
+
+    Báo lỗi nếu file sai: mục keep thiếu dạng đầy đủ, token trùng, hoặc dạng đầy đủ chứa
+    một token khác của từ điển (sẽ thay dây chuyền, normalize hết idempotent).
+    """
+    lexicon: dict[str, str] = {}
+    seen: set[str] = set()
+    with open(path, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f, delimiter="\t"):
+            token = row["token"].lower()
+            if token in seen:
+                raise ValueError(f"Token trùng trong từ điển: {token!r}")
+            seen.add(token)
+            if row["decision"] != "keep":
+                continue
+            if not row["replacement"]:
+                raise ValueError(f"Mục keep thiếu replacement: {token!r}")
+            lexicon[token] = row["replacement"]
+    for token, replacement in lexicon.items():
+        chained = set(replacement.lower().split()) & set(lexicon)
+        if chained:
+            raise ValueError(f"{token!r} -> {replacement!r} chứa token của từ điển: {chained}")
+    return lexicon
+
+
+def find_teencode(text: str, lexicon: dict[str, str]) -> list[tuple[int, int, str]]:
+    """Vị trí các token sẽ bị thay: danh sách (đầu, cuối, dạng đầy đủ), theo thứ tự trong câu.
+
+    Tra không phân biệt hoa/thường; token viết hoa chữ đầu thì dạng đầy đủ cũng viết hoa chữ
+    đầu. Bỏ qua token trong link, token dính số ("5h") và token sau ký tự trong NOT_AFTER (":v").
+    """
+    spans = []
+    offset = 0
+    for i, segment in enumerate(URL_PATTERN.split(text)):
+        # Phần tử ở vị trí lẻ là link (giống apply_outside_urls): không tìm trong đó.
+        if i % 2 == 0:
+            for match in LEXICON_TOKEN.finditer(segment):
+                token = match.group()
+                replacement = lexicon.get(token.lower())
+                if replacement is None:
+                    continue
+                if token[0].isupper():
+                    replacement = replacement[0].upper() + replacement[1:]
+                spans.append((offset + match.start(), offset + match.end(), replacement))
+        offset += len(segment)
+    return spans
+
+
+def replace_teencode(text: str, lexicon: dict[str, str]) -> str:
+    """Thay token đứng riêng có trong từ điển bằng dạng đầy đủ: "Ko biết" -> "Không biết"."""
+    pieces = []
+    last = 0
+    for start, end, replacement in find_teencode(text, lexicon):
+        pieces += [text[last:start], replacement]
+        last = end
+    return "".join(pieces) + text[last:]
+
+
+def normalize(text: str, lexicon: dict[str, str] | None = None) -> str:
     """Chuẩn hóa một bình luận theo thứ tự cố định; đường link được giữ nguyên.
 
-    Thứ tự: NFC -> số thay chữ -> ký tự chèn -> ký tự kéo dài -> khoảng trắng.
+    Thứ tự: NFC -> số thay chữ -> ký tự chèn -> ký tự kéo dài -> từ điển (nếu có) ->
+    khoảng trắng. Không truyền `lexicon` thì chỉ chạy lớp luật (dùng khi tìm ứng viên).
     """
     text = unicodedata.normalize("NFC", text)
-    return collapse_whitespace(apply_outside_urls(text, _normalize_segment))
+    text = apply_outside_urls(text, _normalize_segment)
+    if lexicon:
+        text = replace_teencode(text, lexicon)
+    return collapse_whitespace(text)
 
 
 RULES = {
@@ -161,18 +235,21 @@ def main() -> None:
     """Đo trên TRAIN: mỗi luật đổi bao nhiêu câu, kèm mẫu ngẫu nhiên để đọc kiểm tra."""
     import argparse
 
-    from src.data import TEXT_COL, load_vihsd
+    from src.data import LABEL_COL, LABEL_NAMES, TEXT_COL, load_vihsd
 
     parser = argparse.ArgumentParser(description="Thống kê tác động của chuẩn hóa trên train.")
     parser.add_argument("--data-dir", default="data/raw/vihsd")
     parser.add_argument("--samples", type=int, default=10, help="số ví dụ in ra cho mỗi luật")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--lexicon", nargs="?", const=DEFAULT_LEXICON_PATH, help="đo thêm lớp từ điển (3b)"
+    )
     args = parser.parse_args()
 
     # Gộp khoảng trắng sẵn để mẫu in ra dễ đọc; normalize cũng làm bước này ở cuối.
-    texts = load_vihsd("train", args.data_dir)[TEXT_COL].map(
-        lambda t: collapse_whitespace(unicodedata.normalize("NFC", t))
-    )
+    train = load_vihsd("train", args.data_dir)
+    labels = train[LABEL_COL].map(LABEL_NAMES)
+    texts = train[TEXT_COL].map(lambda t: collapse_whitespace(unicodedata.normalize("NFC", t)))
     print(f"Số câu train: {len(texts)}")
     for name, rule in RULES.items():
         # Áp luật giống hệt trong normalize (bỏ qua link), để số đếm khớp hành vi thật.
@@ -184,6 +261,35 @@ def main() -> None:
             print(f"  {text!r}\n  -> {after[i]!r}")
     total = (texts.map(normalize) != texts).sum()
     print(f"\nTổng: normalize đổi {total} câu ({total / len(texts):.2%}), không tính khoảng trắng")
+    if args.lexicon:
+        _report_lexicon(texts, labels, load_lexicon(args.lexicon), args.samples, args.seed)
+
+
+def _report_lexicon(texts, labels, lexicon: dict[str, str], samples: int, seed: int) -> None:
+    """In tác động của từ điển trên văn bản đã qua lớp luật, kèm mẫu từng lần thay để chấm."""
+    import pandas as pd
+
+    ruled = texts.map(normalize)
+    rows = [
+        (i, ruled[i][start:end].lower(), replacement, ruled[i], start, end)
+        for i in ruled.index
+        for start, end, replacement in find_teencode(ruled[i], lexicon)
+    ]
+    found = pd.DataFrame(rows, columns=["row", "token", "replacement", "text", "start", "end"])
+    changed = found["row"].unique()
+    print(f"\n== Từ điển ({len(lexicon)} mục): đổi {len(changed)} câu", end=" ")
+    print(f"({len(changed) / len(texts):.2%}), {len(found)} lần thay ==")
+    print("Tỉ lệ câu bị đổi theo nhãn:")
+    print((labels[changed].value_counts() / labels.value_counts()).round(4).to_string())
+    print("Token thay nhiều nhất:")
+    print(found["token"].value_counts().head(15).to_string())
+
+    sample = found.sample(min(samples, len(found)), random_state=seed)
+    print(f"\nMẫu {len(sample)} lần thay (seed {seed}), [token -> dạng đầy đủ]:")
+    for r in sample.itertuples():
+        left = r.text[max(0, r.start - 60) : r.start]
+        right = r.text[r.end : r.end + 60]
+        print(f"  row={r.row} {left}[{r.text[r.start : r.end]} -> {r.replacement}]{right}")
 
 
 if __name__ == "__main__":

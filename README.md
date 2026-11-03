@@ -6,7 +6,16 @@ Hệ thống phân loại bình luận tiếng Việt thành 3 nhãn `CLEAN` / `
 
 ## Trạng thái
 
-🚧 Đang phát triển (tuần 2: mô hình transformer).
+🚧 Đang phát triển. Đã xong: baseline, ViSoBERT, chuẩn hóa bằng luật và từ điển teencode (chưa nối vào huấn luyện). Tiếp theo: sinh nhiễu và bộ test nhiễu (tuần 4).
+
+## Chuẩn hóa teencode (cấu hình B)
+
+Hai lớp, đều chỉ xây và đo trên tập train:
+
+- **Lớp luật:** số thay chữ, ký tự chèn giữa chữ, ký tự kéo dài. Đổi 2.33% câu train.
+- **Từ điển teencode/viết tắt** ([resources/teencode.tsv](resources/teencode.tsv)): 83 mục, chọn từ 167 ứng viên bằng cách đọc 10 ngữ cảnh mỗi ứng viên và chỉ giữ token có ít nhất 9/10 ngữ cảnh cùng nghĩa. Đổi 23.6% câu train; precision **0.98** (Wilson 95%: 0.93–0.99) trên 100 lần thay lấy ngẫu nhiên, đo trên mẫu khác với mẫu dùng để chọn.
+
+Nguyên tắc: thà bỏ sót còn hơn sửa sai, vì thay sai làm đổi nghĩa câu. Quy trình và hạn chế: [docs/decisions.md](docs/decisions.md) (D-021, D-022).
 
 ## Kết quả
 
@@ -34,6 +43,7 @@ data/        hướng dẫn tải dữ liệu (không commit dữ liệu)
 notebooks/   khám phá dữ liệu, thử nghiệm
 src/         mã nguồn chính
 configs/     cấu hình thí nghiệm (yaml)
+resources/   tài nguyên tự tuyển chọn (từ điển teencode)
 app/         demo Gradio
 tests/       kiểm thử đơn vị
 reports/     bảng kết quả, biểu đồ, phân tích lỗi

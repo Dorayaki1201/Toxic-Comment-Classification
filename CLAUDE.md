@@ -109,6 +109,7 @@ du-an-toxic-vi/
 │   ├── moderation.py      # logic xử lý sau khi phát hiện
 │   └── utils.py           # seed, logging, đọc/ghi cấu hình
 ├── configs/               # file cấu hình thí nghiệm (yaml)
+├── resources/             # tài nguyên tự tuyển chọn, có commit (teencode.tsv, D-022)
 ├── app/
 │   └── app.py             # Gradio demo (+ trang bình luận mô phỏng)
 ├── tests/                 # test cho normalize, noise, moderation
@@ -155,6 +156,11 @@ python -m src.train --config configs/visobert_base.yaml --seed 43
 python -m src.evaluate --config configs/visobert_base.yaml --split dev --summarize-seeds 42 43 44
 python -m src.evaluate --config configs/visobert_base.yaml --split test --seed 43
 # Test cần mạng (kiểm tra tokenizer ViSoBERT): RUN_NETWORK_TESTS=1 pytest -q -m network
+
+# Chuẩn hóa (chỉ đọc TRAIN): ứng viên từ điển teencode kèm ngữ cảnh để chấm (D-022)
+python -m src.keywords --min-count 10 --contexts 10 --seed 42
+# Đo lớp luật + từ điển trên train: số câu bị đổi, mẫu từng lần thay để chấm precision
+python -m src.normalize --lexicon --samples 100 --seed 2027
 
 # Chạy demo
 python app/app.py
@@ -207,9 +213,9 @@ python app/app.py
 - PhoBERT: **hoãn** tới sau tuần 4 (D-020), xem mục tùy chọn ở tuần 6
 
 **Tuần 3: Chuẩn hóa bằng luật**
-- [ ] Xây từ điển teencode/viết tắt (chỉ từ dữ liệu train)
+- [x] Xây từ điển teencode/viết tắt (chỉ từ dữ liệu train; 83 mục, precision 0.98 trên train, D-022)
 - [x] Xử lý ký tự kéo dài, ký tự chèn, số thay chữ (D-021, chấm mẫu trên train)
-- [ ] Test đơn vị cho `normalize.py`
+- [x] Test đơn vị cho `normalize.py`
 
 **Tuần 4: Sinh nhiễu và bộ test nhiễu**
 - [ ] `noise.py` với các mức độ và seed
