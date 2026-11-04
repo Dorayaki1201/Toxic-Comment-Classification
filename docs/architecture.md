@@ -38,7 +38,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/data.py` | nạp ViHSD, kiểm tra định dạng, xử lý dòng lỗi | ✅ xong | `tests/test_data.py` |
 | `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds (✅, kết quả: `data/README.md` mục 7); ứng viên từ điển teencode (✅ D-022) | ✅ xong | `tests/test_keywords.py` |
 | `src/normalize.py` | lớp luật: số thay chữ, ký tự chèn, ký tự kéo dài (✅ 3a, D-021); từ điển teencode (✅ 3b, D-022, precision 0.98 trên train); nối vào train/evaluate (⬜ 3c) | 🟡 | `tests/test_normalize.py` |
-| `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
+| `src/noise.py` | 5 biến đổi theo ký tự, mức độ + seed (✅ D-023); viết tắt theo bảng độc lập (⬜ chờ nguồn); tạo bộ test nhiễu (⬜) | 🟡 | `tests/test_noise.py` |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
 | `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⏸ hoãn, D-020) | 🟡 | `tests/test_transformer.py` |
 | `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu, bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
@@ -127,6 +127,21 @@ python -m src.normalize --lexicon --samples 100 --seed 2027  # đo thêm từ đ
 
 - Các hàm chuẩn hóa là hàm thuần; chỉ `load_lexicon` đọc file. Từ điển được truyền vào dưới dạng `dict`, nên test dùng từ điển nhỏ viết trong code (D-006).
 - Chưa được gọi trong train/evaluate (phần 3c). Khi làm cấu hình B phải gọi `normalize(text, load_lexicon())`.
+
+### `src/noise.py` (tuần 4, D-023)
+
+```
+perturb(text, transforms, rate, rng) -> str   # mỗi từ bị chọn với xác suất rate, chịu đúng MỘT biến đổi
+perturb_texts(texts, transforms, rate, seed) -> list[str]  # câu thứ i dùng rng_for(seed, i)
+rng_for(seed, key) -> random.Random           # Random(f"{seed}-{key}"): ổn định giữa các lần chạy
+strip_diacritics(word) -> str                 # "Đường" -> "Duong"
+TRANSFORMS: teencode_chars ("phở" -> "fở"), remove_diacritics, elongate ("điien"),
+            substitute_digits ("ng0"), insert_chars ("n.g.u", "ng-u")
+python -m src.noise --samples 5 --seed 42     # xem thử trên mẫu TRAIN: % câu và % từ bị đổi + ví dụ
+```
+
+- Mức độ (`configs/noise.yaml`): light 0.1, medium 0.3, heavy 0.5 = tỉ lệ từ bị đổi, kể cả khi ghép nhiều biến đổi.
+- Hàm thuần, không đọc dữ liệu: bên gọi quyết định đưa tập nào vào. Không dùng `resources/teencode.tsv` (D-022).
 
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 

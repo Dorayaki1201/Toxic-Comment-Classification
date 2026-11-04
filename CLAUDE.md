@@ -162,6 +162,9 @@ python -m src.keywords --min-count 10 --contexts 10 --seed 42
 # Đo lớp luật + từ điển trên train: số câu bị đổi, mẫu từng lần thay để chấm precision
 python -m src.normalize --lexicon --samples 100 --seed 2027
 
+# Sinh nhiễu (D-023): xem thử trên mẫu TRAIN, % câu/từ bị đổi theo từng biến đổi và mức
+python -m src.noise --samples 5 --seed 42
+
 # Chạy demo
 python app/app.py
 ```

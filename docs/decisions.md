@@ -221,3 +221,18 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
   - Tỉ lệ câu bị đổi theo nhãn (seed 2027): CLEAN 20.8%, OFFENSIVE 38.1%, HATE 36.3%. Chuẩn hóa tác động nhiều nhất đúng ở nhóm câu độc hại.
   - Bảng chấm (chỉ số dòng, token, đúng/sai; không chép câu): `reports/teencode/precision_seed2026.tsv`, `precision_seed2027.tsv`.
 - **Đánh đổi / hạn chế đã biết:** bỏ các token phổ biến nhưng nhập nhằng ("v" 693 câu, phần lớn là ":v"; "t", "m"); "k" vẫn có thể là "nghìn", "cs" có thể là "ca sĩ", "bít" phá từ thật "bưng bít", "KO" viết hoa (knock-out) thành "Không"; chữ cái đơn ("H") có thể là chữ viết tắt tên người; "thế.ko" (thiếu dấu cách) không được thay. Từ điển chỉ phản ánh teencode xuất hiện trong ViHSD train.
+
+## D-023. Sinh nhiễu (`noise.py`): mô phỏng người viết thật, mỗi từ một biến đổi, `rate` = tỉ lệ từ bị đổi
+
+- **Ngày:** 04/11/2026
+- **Bối cảnh:** bộ test nhiễu đo độ bền của A/B/C/D; cấu hình D dùng nhiễu để tăng cường train. Ngoài vòng tròn với từ điển (D-022), lớp luật 3a cũng có rủi ro tương tự: nhiễu chỉ sinh đúng dạng luật biết gỡ ("n.g.u", số giữa hai chữ) thì B thắng chỉ vì gặp lại dạng nó được viết để gỡ.
+- **Quyết định:**
+  - 5 biến đổi theo ký tự, không cần bảng từ: `teencode_chars` (ph→f, qu→w, gi→j, gì→j, c→k trừ "ch", v→z, "i" cuối không dấu→j), `remove_diacritics` (từng từ), `elongate` (một nguyên âm lặp 2–5 lần), `substitute_digits` (a/e/i/o/s → 4/3/1/0/$, ở bất kỳ vị trí nào), `insert_chars` (một loại `. - _ *`, vào mọi khe hoặc một khe). Có cả dạng lớp luật cố ý bỏ qua (D-021): lặp 2 lần, số ở cuối từ, một dấu `-`, chữ "f"/"w"/"j"/"z".
+  - **Mỗi từ bị chọn với xác suất `rate` và chịu đúng một biến đổi**, chọn ngẫu nhiên trong các biến đổi áp được lên từ đó. Mức: light 0.1, medium 0.3, heavy 0.5 (`configs/noise.yaml`).
+  - Seed theo từng câu: `random.Random(f"{seed}-{i}")`. Đổi một câu không làm đổi nhiễu của câu khác; giá trị đầu của `rng_for(42, 0)` được khóa trong test.
+  - Không xét nhãn khi chọn từ (ngẫu nhiên đều): nhiễu không mang thông tin nhãn.
+  - **Hoãn "đổi emoji"** (CLAUDE.md mục 4.4): cần một bảng từ → emoji mang tính ngữ nghĩa, tùy ý, khó bảo vệ.
+  - **Viết tắt theo bảng** (`abbreviate`) chưa làm: dự định rút bảng từ split train của ViLexNorm (Nguyen et al., EACL 2024; giấy phép CC BY-NC-SA 4.0, chỉ cho nghiên cứu) để có bảng độc lập với `teencode.tsv`; bảng rút ra là sản phẩm phái sinh nên phải mang cùng giấy phép. Dự phòng là bảng tự viết. Tỉ lệ trùng với `teencode.tsv` sẽ được đo và báo cáo.
+- **Sửa sau khi đọc mẫu train (04/11/2026, seed 42):** bản đầu cho mỗi biến đổi chạy độc lập với cùng `rate`, nên khi ghép 5 biến đổi xác suất một từ bị đổi là 1 − (1 − rate)^5 (≈ 41% / 83% / 97%), và một từ có thể bị chồng nhiều biến đổi ("w.o.o.o.o.o.c"). Sau khi sửa, `python -m src.noise` trên 2000 câu train đo được khoảng 8.9% / 27.2% / 46.4% từ bị đổi ở light/medium/heavy (đếm xấp xỉ). Test `test_rate_is_fraction_of_words_changed` và `test_each_word_gets_only_one_transform` khóa hành vi này.
+- **Lý do:** một nghĩa duy nhất cho `rate` giúp so sánh được giữa bộ từng biến đổi và bộ ghép. Mỗi từ một biến đổi giữ được câu đọc được, gần với cách người dùng thật lách (che vài từ nhạy cảm, không phá cả câu).
+- **Đánh đổi / rủi ro:** không sinh dạng ghép trên một từ ("đ.1.t"). Chọn từ ngẫu nhiên đều, không ưu tiên từ độc hại như người lách thật (để sau, có thể làm mức "targeted" ở tuần 6). `elongate` có thể kéo dài nguyên âm đầu từ ("aaassmin"), ít gặp ngoài đời. Cấu hình D (tuần 5) train trên nhiễu cùng bộ sinh với test nhiễu nên cũng có "lợi thế sân nhà"; cách giảm (ví dụ giữ riêng một loại biến đổi) sẽ quyết định ở tuần 5. Seed của bộ test nhiễu sẽ được ghi ở đây trước khi tạo.
