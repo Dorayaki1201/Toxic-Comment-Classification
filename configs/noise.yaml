@@ -1,0 +1,16 @@
+# Sinh nhiễu (src/noise.py, D-023). rate = xác suất mỗi từ bị biến đổi.
+# Bộ test nhiễu: từng biến đổi riêng ở mức medium + tất cả ghép lại ở 3 mức.
+# Seed của bộ test nhiễu và của tăng cường cấu hình D sẽ được ghi vào decisions.md trước khi chạy.
+levels:
+  light: 0.1
+  medium: 0.3
+  heavy: 0.5
+
+# Thứ tự ở đây chỉ để liệt kê; khi ghép, perturb luôn áp theo thứ tự cố định trong code.
+# "abbreviate" (bảng viết tắt) thêm sau khi có nguồn độc lập; "đổi emoji" hoãn (D-023).
+transforms:
+  - teencode_chars
+  - remove_diacritics
+  - elongate
+  - substitute_digits
+  - insert_chars
