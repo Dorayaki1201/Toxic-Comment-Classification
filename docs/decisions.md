@@ -232,7 +232,24 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
   - Seed theo từng câu: `random.Random(f"{seed}-{i}")`. Đổi một câu không làm đổi nhiễu của câu khác; giá trị đầu của `rng_for(42, 0)` được khóa trong test.
   - Không xét nhãn khi chọn từ (ngẫu nhiên đều): nhiễu không mang thông tin nhãn.
   - **Hoãn "đổi emoji"** (CLAUDE.md mục 4.4): cần một bảng từ → emoji mang tính ngữ nghĩa, tùy ý, khó bảo vệ.
-  - **Viết tắt theo bảng** (`abbreviate`) chưa làm: dự định rút bảng từ split train của ViLexNorm (Nguyen et al., EACL 2024; giấy phép CC BY-NC-SA 4.0, chỉ cho nghiên cứu) để có bảng độc lập với `teencode.tsv`; bảng rút ra là sản phẩm phái sinh nên phải mang cùng giấy phép. Dự phòng là bảng tự viết. Tỉ lệ trùng với `teencode.tsv` sẽ được đo và báo cáo.
+  - **Viết tắt theo bảng** (`abbreviate`): làm sau, xem D-024.
 - **Sửa sau khi đọc mẫu train (04/11/2026, seed 42):** bản đầu cho mỗi biến đổi chạy độc lập với cùng `rate`, nên khi ghép 5 biến đổi xác suất một từ bị đổi là 1 − (1 − rate)^5 (≈ 41% / 83% / 97%), và một từ có thể bị chồng nhiều biến đổi ("w.o.o.o.o.o.c"). Sau khi sửa, `python -m src.noise` trên 2000 câu train đo được khoảng 8.9% / 27.2% / 46.4% từ bị đổi ở light/medium/heavy (đếm xấp xỉ). Test `test_rate_is_fraction_of_words_changed` và `test_each_word_gets_only_one_transform` khóa hành vi này.
 - **Lý do:** một nghĩa duy nhất cho `rate` giúp so sánh được giữa bộ từng biến đổi và bộ ghép. Mỗi từ một biến đổi giữ được câu đọc được, gần với cách người dùng thật lách (che vài từ nhạy cảm, không phá cả câu).
 - **Đánh đổi / rủi ro:** không sinh dạng ghép trên một từ ("đ.1.t"). Chọn từ ngẫu nhiên đều, không ưu tiên từ độc hại như người lách thật (để sau, có thể làm mức "targeted" ở tuần 6). `elongate` có thể kéo dài nguyên âm đầu từ ("aaassmin"), ít gặp ngoài đời. Cấu hình D (tuần 5) train trên nhiễu cùng bộ sinh với test nhiễu nên cũng có "lợi thế sân nhà"; cách giảm (ví dụ giữ riêng một loại biến đổi) sẽ quyết định ở tuần 5. Seed của bộ test nhiễu sẽ được ghi ở đây trước khi tạo.
+
+## D-024. Biến đổi viết tắt: bảng rút tự động từ ViLexNorm train, không sửa tay
+
+- **Ngày:** 04/11/2026
+- **Bối cảnh:** `noise.py` cần biến đổi viết tắt ("không" → "ko") nhưng không được dùng `teencode.tsv` (D-022). Một bảng do người làm dự án tự viết vẫn phụ thuộc vào cùng một người đã chấm từ điển. ViLexNorm (Nguyen et al., EACL 2024) có 10.467 cặp câu (gốc, chuẩn hóa) do người khác gán, từ Facebook và TikTok; giấy phép CC BY-NC-SA 4.0, chỉ cho nghiên cứu (`data/README.md`).
+- **Quyết định:**
+  - Chỉ dùng **split train** (8372 cặp). Dev/test để dành đo ERR của `normalize.py`.
+  - Tách hai câu theo dấu cách (bỏ dấu câu hai đầu), gióng hàng bằng `difflib.SequenceMatcher`, chỉ giữ chỗ thay **1 từ ↔ 1 từ** mà cả hai bên chỉ gồm chữ cái. Bỏ 1-n/n-1 (dễ gióng sai; ViLexNorm không gán viết tắt cụm từ).
+  - Bỏ cặp mà 5 biến đổi theo ký tự tự sinh được (so sau khi viết thường, đổi số về chữ, bỏ dấu, gộp chữ lặp; và thử từng luật teencode), để mỗi loại nhiễu chỉ nằm ở một biến đổi. Rút chữ lặp từ 3 lần trước khi đếm ("lunnn" cộng vào "lun").
+  - Giữ cặp gặp **ít nhất 3 lần**; `abbreviate` chọn dạng viết tắt theo tần suất. Bảng được commit ở `resources/noise_abbrev.tsv` với giấy phép CC BY-NC-SA 4.0 riêng; **không sửa tay**.
+- **Kết quả** (`python -m src.noise --build-abbrev ... --min-count 3`, seed 42 cho phép xáo khi đo độ bão hòa): 12.276 cặp từ sau lọc; bảng có **207 từ chuẩn, 424 mục** (ngưỡng 2: 610 mục, ngưỡng 5: 277 mục).
+  - **Độ bão hòa:** xây trên 25/50/75/100% train được 152/261/346/424 mục; cả 50 mục phổ biến nhất của bảng đầy đủ đều đã xuất hiện từ mức 25%. Phần phổ biến đã ổn định, phần đuôi hiếm vẫn còn tăng: thêm dữ liệu chỉ thêm dạng hiếm. Không tự sinh thêm vì làm mất tính độc lập.
+  - **Trùng với `teencode.tsv`:** 40/424 mục có dạng viết tắt nằm trong mục `keep` (35 mục trùng cả cặp), nhưng chiếm **45.5% theo tần suất**. Nghĩa là khoảng một nửa số lần `abbreviate` sinh ra là dạng mà từ điển của B gỡ được ("ko", "đc"); nửa còn lại B không gỡ được, kể cả dạng rất phổ biến mà D-022 đã cố ý loại vì nhập nhằng ("t" = tôi/tao, "m" = mày/mình). Phải báo con số này kèm điểm của B trên bộ `abbreviate`.
+  - **Trùng câu với ViHSD:** 0 câu (train/dev/test), so sau NFC, viết thường, gộp khoảng trắng.
+  - Xem thử trên 2000 câu ViHSD train (seed 42): `abbreviate` @ medium đổi khoảng 9% số từ (chỉ từ có trong bảng mới đổi được).
+- **Lý do:** bảng từ nguồn độc lập, gán bởi người khác, dễ bảo vệ hơn bảng tự viết. Không sửa tay để bảng sinh lại được đúng từng dòng từ dữ liệu gốc.
+- **Đánh đổi / hạn chế đã biết:** đọc 40 mục ngẫu nhiên có tần suất ≤ 4: 1 mục rõ là lỗi gõ ("cubgx"); có chơi chữ phụ thuộc ngữ cảnh ("bình" → "pink" từ "tide pink" = "thái bình", áp lên tên "Bình" thì không tự nhiên); một số biến thể vùng miền (n/l: "nên" → "lên"). `abbreviate` áp theo từng từ, không xét ngữ cảnh. Bảng phản ánh teencode của Facebook/TikTok trong thời gian ViLexNorm thu thập.

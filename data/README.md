@@ -12,6 +12,7 @@ Dữ liệu **không được commit** lên GitHub. File này ghi nguồn, giấ
 | ViCTSD | Kiểm tra chéo | TODO | TODO | TODO |
 | ViHOS | Nhãn mức đoạn từ | TODO | TODO | TODO |
 | ViTHSD | Tùy chọn: thù ghét theo đối tượng | TODO | TODO | TODO |
+| ViLexNorm | Bảng viết tắt cho sinh nhiễu (chỉ train); dev/test để dành đo `normalize.py` | [ngxtnhi/ViLexNorm](https://github.com/ngxtnhi/ViLexNorm) | CC BY-NC-SA 4.0, chỉ cho nghiên cứu | 04/11/2026 |
 
 ## Quy tắc dùng dữ liệu trong dự án
 
@@ -190,3 +191,53 @@ Mô hình tốt nhất tác giả báo cáo là mBERT (`bert-base-multilingual-c
 **Thông tin cá nhân.** Tên người đăng đã được loại bỏ, nhưng tên người thật vẫn xuất hiện trong nội dung bình luận (do tag bạn bè hoặc nhắc tới người nổi tiếng). Không trích các bình luận này trong báo cáo hay demo.
 
 **Thời gian thu thập không rõ.** Từ lóng và teencode thay đổi theo thời gian, nên mô hình có thể kém hơn trên bình luận mới.
+
+---
+
+# ViLexNorm
+
+## 1. Nguồn và trích dẫn
+
+- **Bài báo:** Nguyen, Le & Nguyen (2024), *ViLexNorm: A Lexical Normalization Corpus for Vietnamese Social Media Text*, EACL 2024, trang 1421–1437. <https://aclanthology.org/2024.eacl-long.85>
+- **Repo của tác giả:** <https://github.com/ngxtnhi/ViLexNorm>, bản dùng trong dự án: commit `1070c6b9b00830fad278f48d9797df9ae1c942ac` (tải 04/11/2026).
+
+```bibtex
+@inproceedings{nguyen-etal-2024-vilexnorm,
+    title = "{V}i{L}ex{N}orm: A Lexical Normalization Corpus for {V}ietnamese Social Media Text",
+    author = "Nguyen, Thanh-Nhi and Le, Thanh-Phong and Nguyen, Kiet",
+    booktitle = "Proceedings of the 18th Conference of the European Chapter of the Association for Computational Linguistics (Volume 1: Long Papers)",
+    month = mar,
+    year = "2024",
+    address = "St. Julian{'}s, Malta",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2024.eacl-long.85",
+    pages = "1421--1437",
+}
+```
+
+## 2. Giấy phép
+
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0); bài báo ghi dữ liệu "chỉ dùng cho mục đích nghiên cứu". Với dự án này:
+
+- Phi thương mại (dự án cá nhân, học tập): phù hợp. Luôn trích dẫn bài báo.
+- Không đăng lại dữ liệu gốc. Bảng `resources/noise_abbrev.tsv` là **sản phẩm phái sinh** nên mang cùng giấy phép CC BY-NC-SA 4.0 (ghi ở `resources/README.md`), khác giấy phép của code.
+- Đây là cách hiểu của dự án, không phải tư vấn pháp lý; xem bản chính thức trên creativecommons.org.
+
+## 3. Cách tải
+
+```powershell
+git clone --depth 1 https://github.com/ngxtnhi/ViLexNorm.git data\raw\vilexnorm
+git -C data\raw\vilexnorm rev-parse HEAD   # phải ra commit ghi ở mục 1
+```
+
+## 4. Cấu trúc và thống kê
+
+- `data/train.csv`, `dev.csv`, `test.csv`; cột đầu là chỉ số không tên (đọc bằng `index_col=0`), rồi `original` (câu gốc) và `normalized` (câu đã chuẩn hóa). Chữ hoa được giữ nguyên.
+- Số cặp câu (đo 04/11/2026): train 8372, dev 1050, test 1045, tổng 10.467, khớp với bài báo (chia 8:1:1).
+- **Nguồn** (theo bài báo): bình luận công khai trên Facebook và TikTok, nhiều chủ đề, thu thập khoảng 6 tháng. Emoji và @username bị bỏ khi tiền xử lý.
+- **Chuẩn hóa những gì** (theo bài báo, định nghĩa của van der Goot và cộng sự 2021): thay từng từ về dạng chuẩn, kể cả 1-n và n-1; cả từ ngoài từ điển ("ko", "hok") lẫn từ trong từ điển dùng sai ("hôn" thay "không"); cố ý (lóng, viết tắt, leet, chơi chữ, kéo dài) và vô ý (lỗi gõ). Không gán viết tắt cụm từ.
+- **Trùng với ViHSD:** 0 câu train ViLexNorm trùng nguyên văn (sau NFC, viết thường, gộp khoảng trắng) với ViHSD train/dev/test. Chỉ so văn bản, không đọc nhãn.
+
+## 5. Cách dùng trong dự án
+
+- **Chỉ split train** được dùng để xây bảng viết tắt (`python -m src.noise --build-abbrev`, D-024). Dev/test được giữ sạch để có thể đo ERR của `normalize.py` sau này.
