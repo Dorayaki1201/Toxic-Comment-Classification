@@ -12,14 +12,21 @@ Module không đọc dữ liệu; bên gọi quyết định đưa tập nào v�
 
 import csv
 import difflib
+import hashlib
+import json
 import random
 import re
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+from typing import Any
 
+import pandas as pd
+
+from src.data import LABEL_COL, TEXT_COL
 from src.normalize import LETTER, apply_outside_urls, has_vowel
 
 WORD = re.compile(rf"{LETTER}+")
@@ -196,10 +203,21 @@ def perturb_texts(
     rate: float,
     seed: int,
     abbreviations: Abbreviations | None = None,
+    stream: str | None = None,
 ) -> list[str]:
-    """Sinh nhiễu cho cả danh sách; câu thứ i dùng `rng_for(seed, i)`."""
+    """Sinh nhiễu cho cả danh sách; câu thứ i dùng `rng_for(seed, i)`.
+
+    Có `stream` thì dùng khóa `f"{stream}-{i}"`: hai luồng khác tên cho nhiễu độc lập dù
+    chung seed (mỗi bộ test nhiễu một luồng, D-025).
+    """
     return [
-        perturb(text, transforms, rate, rng_for(seed, i), abbreviations)
+        perturb(
+            text,
+            transforms,
+            rate,
+            rng_for(seed, i if stream is None else f"{stream}-{i}"),
+            abbreviations,
+        )
         for i, text in enumerate(texts)
     ]
 
@@ -314,6 +332,105 @@ def load_abbreviations(path: str | Path = DEFAULT_ABBREV_PATH) -> Abbreviations:
     return table
 
 
+# --- Bộ test nhiễu (D-025) ---
+
+
+@dataclass(frozen=True)
+class NoisySpec:
+    """Một bộ nhiễu: tên (cũng là tên luồng ngẫu nhiên), các biến đổi, tỉ lệ từ bị đổi."""
+
+    name: str
+    transforms: tuple[str, ...]
+    rate: float
+
+
+# Đối chứng: chỉ đưa về NFC, không nhiễu. Chỉ tạo khi NFC làm đổi ít nhất một câu.
+NFC_ONLY = NoisySpec("nfc_only", (), 0.0)
+
+
+def noisy_test_specs(config: dict[str, Any]) -> list[NoisySpec]:
+    """Mỗi biến đổi riêng ở mức medium, rồi tất cả ghép lại ở từng mức trong config."""
+    levels, transforms = config["levels"], config["transforms"]
+    specs = [NoisySpec(f"{name}_medium", (name,), levels["medium"]) for name in transforms]
+    specs += [NoisySpec(f"all_{level}", tuple(transforms), rate) for level, rate in levels.items()]
+    return specs
+
+
+def count_changed_words(original: str, noisy: str) -> int:
+    """Số từ của câu gốc không còn nguyên trong câu nhiễu (xấp xỉ: từ lặp lại đếm theo tập)."""
+    remaining = set(WORD.findall(noisy))
+    return sum(word not in remaining for word in WORD.findall(original))
+
+
+def build_noisy_set(
+    df: pd.DataFrame, spec: NoisySpec, seed: int, abbreviations: Abbreviations | None = None
+) -> pd.DataFrame:
+    """Bản nhiễu của một tập: cùng số dòng, thứ tự và nhãn; chỉ cột văn bản bị đổi.
+
+    Cột: row_id (vị trí trong `df`), free_text (câu nhiễu), label_id, changed (khác bản
+    gốc đã đưa về NFC). Hàm không đọc dữ liệu; bên gọi quyết định đưa tập nào vào.
+    """
+    texts = df[TEXT_COL].tolist()
+    noisy = perturb_texts(texts, spec.transforms, spec.rate, seed, abbreviations, spec.name)
+    originals = [unicodedata.normalize("NFC", text) for text in texts]
+    return pd.DataFrame(
+        {
+            "row_id": range(len(df)),
+            TEXT_COL: noisy,
+            LABEL_COL: df[LABEL_COL].to_numpy(),
+            "changed": [a != b for a, b in zip(originals, noisy, strict=True)],
+        }
+    )
+
+
+def count_non_nfc(texts: Iterable[str]) -> int:
+    """Số câu mà đưa về NFC làm thay đổi (khi > 0 thì cần bộ đối chứng `nfc_only`)."""
+    return sum(unicodedata.normalize("NFC", text) != text for text in texts)
+
+
+def make_noisy_test_sets(
+    df: pd.DataFrame, config: dict[str, Any], seed: int, abbreviations: Abbreviations | None
+) -> dict[str, pd.DataFrame]:
+    """Tạo mọi bộ theo `noisy_test_specs`, thêm `nfc_only` nếu có câu không ở dạng NFC."""
+    specs = noisy_test_specs(config)
+    if count_non_nfc(df[TEXT_COL]):
+        specs.append(NFC_ONLY)
+    return {spec.name: build_noisy_set(df, spec, seed, abbreviations) for spec in specs}
+
+
+def csv_bytes(df: pd.DataFrame) -> bytes:
+    """Nội dung CSV cố định (UTF-8, xuống dòng LF): hash của nó là hash của file đã ghi."""
+    return df.to_csv(index=False, lineterminator="\n").encode("utf-8")
+
+
+def sha256_text_file(path: str | Path) -> str:
+    """sha256 của file văn bản sau khi đổi CRLF thành LF, để Windows và Kaggle cho cùng giá trị."""
+    return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def set_summary(noisy: pd.DataFrame, original: pd.DataFrame) -> dict[str, Any]:
+    """Thống kê một bộ để ghi vào manifest: số câu/từ bị đổi và hash nội dung."""
+    originals = [unicodedata.normalize("NFC", t) for t in original[TEXT_COL]]
+    total_words = sum(len(WORD.findall(t)) for t in originals)
+    words = sum(count_changed_words(a, b) for a, b in zip(originals, noisy[TEXT_COL], strict=True))
+    sentences = int(noisy["changed"].sum())
+    return {
+        "rows": len(noisy),
+        "sentences_changed": sentences,
+        "sentences_changed_pct": round(100 * sentences / max(len(noisy), 1), 2),
+        "words_changed_pct_approx": round(100 * words / max(total_words, 1), 2),
+        "sha256": hashlib.sha256(csv_bytes(noisy)).hexdigest(),
+    }
+
+
+def compare_with_manifest(sets: dict[str, pd.DataFrame], manifest: dict[str, Any]) -> list[str]:
+    """Các bộ có hash khác manifest, thiếu hoặc thừa so với manifest; rỗng = tái lập đúng."""
+    expected = {name: info["sha256"] for name, info in manifest["sets"].items()}
+    actual = {name: hashlib.sha256(csv_bytes(df)).hexdigest() for name, df in sets.items()}
+    names = sorted(expected.keys() | actual.keys())
+    return [name for name in names if expected.get(name) != actual.get(name)]
+
+
 def _comparable(text: str) -> str:
     return " ".join(unicodedata.normalize("NFC", text).lower().split())
 
@@ -364,16 +481,88 @@ def _report_build(pairs: list[tuple[str, str]], args) -> None:
     print(f"\nĐã ghi {len(entries)} mục vào {args.out}")
 
 
+def _make_test_sets(config: dict[str, Any], args) -> None:
+    """Tạo bộ test nhiễu từ ViHSD TEST (D-025), hoặc chỉ kiểm tra tái lập (--check).
+
+    Chỉ in thống kê, không in câu test: bộ sinh nhiễu đã đóng băng, không chỉnh theo test.
+    """
+    import sys
+
+    from src.data import load_vihsd
+    from src.utils import set_seed
+
+    settings = config["test_sets"]
+    seed, out_dir, manifest_path = (
+        settings["seed"],
+        Path(settings["out_dir"]),
+        Path(settings["manifest"]),
+    )
+    set_seed(seed)
+    abbreviations = load_abbreviations(config["abbreviations"])
+    test = load_vihsd("test", args.data_dir)
+    sets = make_noisy_test_sets(test, config, seed, abbreviations)
+    inputs = {
+        "src/noise.py": sha256_text_file(__file__),
+        config["abbreviations"]: sha256_text_file(config["abbreviations"]),
+    }
+
+    if args.check:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for name, digest in inputs.items():
+            if manifest["inputs"].get(name) != digest:
+                print(f"CẢNH BÁO: {name} khác lúc tạo bộ (noise.py đã đóng băng, D-025)")
+        mismatched = compare_with_manifest(sets, manifest)
+        for name in sorted(sets):
+            path = out_dir / f"{name}.csv"
+            if path.exists() and path.read_bytes() != csv_bytes(sets[name]):
+                mismatched.append(f"{name} (file trên đĩa)")
+        if mismatched:
+            print(f"KHÔNG khớp manifest: {mismatched}")
+            sys.exit(1)
+        print(f"Khớp manifest: {len(sets)} bộ, seed {seed}")
+        return
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    summaries = {}
+    for name, noisy in sets.items():
+        (out_dir / f"{name}.csv").write_bytes(csv_bytes(noisy))
+        spec = next((s for s in noisy_test_specs(config) if s.name == name), NFC_ONLY)
+        summaries[name] = {
+            "transforms": list(spec.transforms),
+            "rate": spec.rate,
+            **set_summary(noisy, test),
+        }
+        info = summaries[name]
+        print(
+            f"{name:28s} rate {spec.rate}: đổi {info['sentences_changed']}/{info['rows']} câu "
+            f"({info['sentences_changed_pct']}%), ~{info['words_changed_pct_approx']}% từ"
+        )
+    manifest = {
+        "decision": "D-025",
+        "source": f"load_vihsd('test', '{args.data_dir}')",
+        "seed": seed,
+        "rng_key": "rng_for(seed, f'{tên bộ}-{i}')",
+        "rows": len(test),
+        "nfc_changed_rows": count_non_nfc(test[TEXT_COL]),
+        "levels": config["levels"],
+        "transforms": config["transforms"],
+        "inputs": inputs,
+        "sets": summaries,
+    }
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", "utf-8")
+    print(f"\nCâu test đổi khi đưa về NFC: {manifest['nfc_changed_rows']}")
+    print(f"Đã ghi {len(sets)} bộ vào {out_dir}, manifest: {manifest_path}")
+
+
 def main() -> None:
-    """Xem thử nhiễu trên mẫu TRAIN, hoặc xây bảng viết tắt từ ViLexNorm train (--build-abbrev)."""
+    """Xem thử nhiễu trên mẫu TRAIN, xây bảng viết tắt (--build-abbrev), hoặc tạo bộ test nhiễu."""
     import argparse
 
-    import pandas as pd
-
-    from src.data import TEXT_COL, load_vihsd
+    from src.data import load_vihsd
     from src.utils import load_config, set_seed
 
-    parser = argparse.ArgumentParser(description="Xem thử nhiễu / xây bảng viết tắt.")
+    parser = argparse.ArgumentParser(description="Xem thử nhiễu / xây bảng viết tắt / bộ test.")
     parser.add_argument("--config", default="configs/noise.yaml")
     parser.add_argument("--data-dir", default="data/raw/vihsd")
     parser.add_argument("--sentences", type=int, default=2000, help="số câu train lấy mẫu")
@@ -382,8 +571,15 @@ def main() -> None:
     parser.add_argument("--build-abbrev", metavar="CSV", help="ViLexNorm train.csv -> bảng")
     parser.add_argument("--min-count", type=int, default=3)
     parser.add_argument("--out", default=DEFAULT_ABBREV_PATH)
+    parser.add_argument(
+        "--make-test-sets", action="store_true", help="tạo bộ test nhiễu từ TEST (D-025)"
+    )
+    parser.add_argument("--check", action="store_true", help="chỉ so với manifest, không ghi")
     args = parser.parse_args()
 
+    if args.make_test_sets:
+        _make_test_sets(load_config(args.config), args)
+        return
     set_seed(args.seed)
     if args.build_abbrev:
         df = pd.read_csv(args.build_abbrev, index_col=0, keep_default_na=False)
@@ -391,7 +587,6 @@ def main() -> None:
         return
 
     config = load_config(args.config)
-    levels, transforms = config["levels"], config["transforms"]
     abbreviations = (
         load_abbreviations(config["abbreviations"]) if "abbreviations" in config else None
     )
@@ -400,17 +595,12 @@ def main() -> None:
     texts = [unicodedata.normalize("NFC", t) for t in texts]
     total_words = sum(len(WORD.findall(t)) for t in texts)
 
-    runs = [([name], "medium") for name in transforms]
-    runs += [(transforms, level) for level in levels]
-    for names, level in runs:
-        noisy = perturb_texts(texts, names, levels[level], args.seed, abbreviations)
+    # Cùng danh sách bộ với bộ test nhiễu, nhưng trên mẫu TRAIN và không dùng luồng riêng.
+    for spec in noisy_test_specs(config):
+        noisy = perturb_texts(texts, spec.transforms, spec.rate, args.seed, abbreviations)
         changed = [(a, b) for a, b in zip(texts, noisy, strict=True) if a != b]
-        # Đếm từ bị đổi = số từ của câu gốc không còn nguyên trong câu nhiễu (xấp xỉ).
-        words_changed = sum(
-            sum(word not in set(WORD.findall(b)) for word in WORD.findall(a)) for a, b in changed
-        )
-        label = names[0] if len(names) == 1 else "all"
-        print(f"\n== {label} @ {level} (rate {levels[level]}): đổi {len(changed)}", end="")
+        words_changed = sum(count_changed_words(a, b) for a, b in changed)
+        print(f"\n== {spec.name} (rate {spec.rate}): đổi {len(changed)}", end="")
         print(f"/{len(texts)} câu ({len(changed) / len(texts):.2%}),", end=" ")
         print(f"~{words_changed / total_words:.2%} từ ==")
         for before, after in changed[: args.samples]:

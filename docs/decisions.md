@@ -253,3 +253,32 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
   - Xem thử trên 2000 câu ViHSD train (seed 42): `abbreviate` @ medium đổi khoảng 9% số từ (chỉ từ có trong bảng mới đổi được).
 - **Lý do:** bảng từ nguồn độc lập, gán bởi người khác, dễ bảo vệ hơn bảng tự viết. Không sửa tay để bảng sinh lại được đúng từng dòng từ dữ liệu gốc.
 - **Đánh đổi / hạn chế đã biết:** đọc 40 mục ngẫu nhiên có tần suất ≤ 4: 1 mục rõ là lỗi gõ ("cubgx"); có chơi chữ phụ thuộc ngữ cảnh ("bình" → "pink" từ "tide pink" = "thái bình", áp lên tên "Bình" thì không tự nhiên); một số biến thể vùng miền (n/l: "nên" → "lên"). `abbreviate` áp theo từng từ, không xét ngữ cảnh. Bảng phản ánh teencode của Facebook/TikTok trong thời gian ViLexNorm thu thập.
+
+## D-025. Bộ test nhiễu: 9 bộ từ ViHSD test, seed 1105, mỗi bộ một luồng ngẫu nhiên riêng, `noise.py` đóng băng
+
+- **Ngày:** 05/11/2026 (seed ghi **trước** khi tạo bộ)
+- **Bối cảnh:** cần bộ test nhiễu cố định để đo độ bền của A/B/C/D (CLAUDE.md mục 5). Bộ sinh nhiễu đã xong (D-023, D-024). Dữ liệu sinh ra từ ViHSD nên không được commit, nhưng vẫn phải tái lập được đúng từng byte trên máy khác (Kaggle).
+- **Quyết định:**
+  - **9 bộ** từ `load_vihsd("test")` (6680 dòng): 6 bộ một biến đổi ở mức medium (`<biến đổi>_medium`, rate 0.3) và 3 bộ ghép cả 6 biến đổi (`all_light`, `all_medium`, `all_heavy`). Giữ đúng số dòng, thứ tự và nhãn gốc; cột `row_id` trỏ về vị trí trong test gốc, để seen/unseen (D-014) được tính theo câu gốc.
+  - **Seed 1105**, chưa từng dùng ở bước nào trước đó. Câu i của bộ `<tên>` dùng `rng_for(1105, "<tên>-<i>")`: các bộ độc lập với nhau, không tương quan một phần như khi dùng chung `rng_for(seed, i)`.
+  - **Cấu hình D (tuần 5) phải dùng seed khác 1105** khi sinh nhiễu tăng cường: khoảng 805 câu test trùng với train (D-014), dùng chung seed và khóa thì D có thể học đúng dạng nhiễu sẽ gặp lúc test.
+  - **Đối chứng NFC:** `perturb` đưa cả câu về NFC, còn `transformer.py` không tự làm việc này (baseline thì có, `models.py`). Nếu có câu test mà NFC làm thay đổi, tạo thêm bộ `nfc_only` (rate 0) để tách ảnh hưởng của NFC khỏi ảnh hưởng của nhiễu.
+  - **`noise.py` đóng băng** từ lần tạo bộ đầu tiên. Lệnh tạo chỉ in thống kê (% câu, % từ bị đổi), không in câu test. Không sửa bộ sinh nhiễu dựa trên những gì thấy ở test nhiễu; nếu buộc phải sửa thì ghi quyết định mới và tạo phiên bản bộ mới.
+  - **Không commit dữ liệu, commit manifest** `reports/noisy_test/manifest.json`: seed, mức và biến đổi, sha256 của `noise.py` và `noise_abbrev.tsv` (sau khi đổi CRLF thành LF), và cho từng bộ: số câu đổi, % câu, % từ đổi, sha256 của CSV. `python -m src.noise --make-test-sets --check` sinh lại trong bộ nhớ và so hash.
+- **Kết quả tạo bộ (05/11/2026, `python -m src.noise --make-test-sets`, sau commit ghi seed):** `--check` khớp manifest. **141/6680 câu test thay đổi khi đưa về NFC**, nên có thêm bộ đối chứng `nfc_only` (tổng 10 bộ). Với transformer, mức tụt phải tính so với điểm trên `nfc_only`, không phải test gốc. Tỉ lệ câu / từ bị đổi (từ đếm xấp xỉ):
+
+  | Bộ | rate | % câu đổi | % từ đổi |
+  |---|---|---|---|
+  | abbreviate_medium | 0.3 | 52.96 | 8.69 |
+  | teencode_chars_medium | 0.3 | 51.38 | 7.73 |
+  | remove_diacritics_medium | 0.3 | 74.31 | 19.93 |
+  | elongate_medium | 0.3 | 84.64 | 25.95 |
+  | substitute_digits_medium | 0.3 | 82.98 | 23.93 |
+  | insert_chars_medium | 0.3 | 84.93 | 26.01 |
+  | all_light | 0.1 | 55.34 | 8.57 |
+  | all_medium | 0.3 | 85.36 | 26.68 |
+  | all_heavy | 0.5 | 94.04 | 45.81 |
+
+  Các bộ một biến đổi có % từ đổi khác nhau vì không phải từ nào cũng áp được mọi biến đổi (`abbreviate` chỉ đổi từ có trong bảng, `teencode_chars` chỉ đổi từ khớp luật). Khi so mức tụt giữa các bộ phải đọc kèm cột này.
+- **Lý do:** seed ghi trước khi tạo thì không thể chọn seed "đẹp" sau khi thấy kết quả. Luồng riêng mỗi bộ cho một câu trả lời đơn giản khi bị hỏi ("các bộ độc lập"). Manifest có hash thay cho việc commit dữ liệu.
+- **Đánh đổi:** chỉ một seed nhiễu nên chưa biết phương sai do nhiễu (có thể tạo thêm 2 seed cho `all_medium` ở tuần 6). Các mức không lồng nhau (từ bị đổi ở light không chắc nằm trong medium). Giả định nhiễu không đổi nhãn, dựa trên đọc mẫu train (D-023). Phương án bỏ: dùng chung `rng_for(seed, i)` cho mọi bộ; commit CSV.

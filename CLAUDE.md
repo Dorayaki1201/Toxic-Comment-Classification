@@ -166,6 +166,9 @@ python -m src.normalize --lexicon --samples 100 --seed 2027
 python -m src.noise --samples 5 --seed 42
 # Xây bảng viết tắt cho nhiễu từ ViLexNorm TRAIN -> resources/noise_abbrev.tsv (D-024)
 python -m src.noise --build-abbrev data/raw/vilexnorm/data/train.csv --min-count 3
+# Bộ test nhiễu từ ViHSD TEST (D-025, seed trong configs/noise.yaml) -> data/noisy/vihsd_test/ + manifest
+python -m src.noise --make-test-sets
+python -m src.noise --make-test-sets --check   # tái lập: so hash với reports/noisy_test/manifest.json
 
 # Chạy demo
 python app/app.py
@@ -224,7 +227,7 @@ python app/app.py
 
 **Tuần 4: Sinh nhiễu và bộ test nhiễu**
 - [x] `noise.py` với các mức độ và seed (6 biến đổi, D-023; viết tắt từ ViLexNorm train, D-024; đổi emoji hoãn)
-- [ ] Tạo bộ test nhiễu từ test gốc
+- [x] Tạo bộ test nhiễu từ test gốc (9 bộ + đối chứng `nfc_only`, seed 1105, D-025; manifest `reports/noisy_test/`)
 - [ ] Đo mức tụt điểm của cấu hình A
 
 **Tuần 5: Cấu hình C và D**

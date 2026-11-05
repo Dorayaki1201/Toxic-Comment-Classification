@@ -1,23 +1,34 @@
+import hashlib
 import random
 import re
 import unicodedata
 from collections import Counter
 
+import pandas as pd
 import pytest
 
 from src.noise import (
     DEFAULT_ABBREV_PATH,
     INSERT_CHARS,
+    NFC_ONLY,
     TRANSFORMS,
+    NoisySpec,
     abbreviate_word,
     build_abbreviations,
+    build_noisy_set,
+    compare_with_manifest,
     count_abbreviations,
+    count_changed_words,
+    count_non_nfc,
+    csv_bytes,
     digit_word,
     elongate_word,
     explained_by_char_transforms,
     extract_word_pairs,
     insert_word,
     load_abbreviations,
+    make_noisy_test_sets,
+    noisy_test_specs,
     perturb,
     perturb_texts,
     rng_for,
@@ -278,3 +289,95 @@ def test_committed_abbreviation_table_loads():
     table = load_abbreviations(DEFAULT_ABBREV_PATH)
     assert table["không"]
     assert not any(re.search(r"(.)\1\1", v) for variants in table.values() for v in variants)
+
+
+# --- Bộ test nhiễu (D-025). DataFrame nhỏ viết trong code, không đọc ViHSD. ---
+
+CONFIG = {"levels": {"light": 0.1, "medium": 0.3, "heavy": 0.5}, "transforms": ["abbreviate", *ALL]}
+NFD = unicodedata.normalize("NFD", "thằng này")
+
+
+def small_df() -> pd.DataFrame:
+    texts = [SENTENCE, "Tôi không biết", "", "50k 2020", SENTENCE.upper(), "phải đi học"]
+    return pd.DataFrame({"free_text": texts, "label_id": [0, 1, 2, 0, 1, 2]})
+
+
+def test_noisy_test_specs_are_six_single_plus_three_combined():
+    specs = noisy_test_specs(CONFIG)
+    assert [s.name for s in specs] == [f"{n}_medium" for n in CONFIG["transforms"]] + [
+        "all_light",
+        "all_medium",
+        "all_heavy",
+    ]
+    assert all(s.rate == 0.3 and len(s.transforms) == 1 for s in specs[:6])
+    assert [s.rate for s in specs[6:]] == [0.1, 0.3, 0.5]
+    assert all(set(s.transforms) == set(CONFIG["transforms"]) for s in specs[6:])
+
+
+def test_build_noisy_set_keeps_rows_order_and_labels():
+    df = small_df()
+    noisy = build_noisy_set(df, NoisySpec("all_heavy", tuple(ALL), 1.0), 1105, ABBREV)
+    assert list(noisy.columns) == ["row_id", "free_text", "label_id", "changed"]
+    assert noisy["row_id"].tolist() == list(range(len(df)))
+    assert noisy["label_id"].tolist() == df["label_id"].tolist()
+    # Câu rỗng (dòng lỗi, D-004) và câu không có chữ thì giữ nguyên, changed = False.
+    assert noisy["free_text"][2] == "" and not noisy["changed"][2]
+    assert noisy["free_text"][3] == "50k 2020" and not noisy["changed"][3]
+    assert noisy["changed"][0]
+    assert noisy["changed"].tolist() == (noisy["free_text"] != df["free_text"]).tolist()
+
+
+def test_build_noisy_set_is_deterministic_and_streams_are_independent():
+    df = pd.DataFrame({"free_text": [SENTENCE] * 20, "label_id": [0] * 20})
+    first = build_noisy_set(df, NoisySpec("a", tuple(ALL), 0.5), 1105)
+    assert first.equals(build_noisy_set(df, NoisySpec("a", tuple(ALL), 0.5), 1105))
+    # Cùng biến đổi, cùng rate, cùng seed, khác tên bộ: phải khác (luồng riêng).
+    other = build_noisy_set(df, NoisySpec("b", tuple(ALL), 0.5), 1105)
+    assert (first["free_text"] != other["free_text"]).sum() > 10
+
+
+def test_stream_none_keeps_old_behaviour():
+    # Bản xem thử trên train và test cũ phải ra đúng như trước khi thêm `stream`.
+    texts = [SENTENCE] * 3
+    old = [perturb(t, ALL, 0.5, rng_for(7, i)) for i, t in enumerate(texts)]
+    assert perturb_texts(texts, ALL, 0.5, seed=7) == old
+    assert perturb_texts(texts, ALL, 0.5, seed=7, stream="x") != old
+
+
+def test_nfc_only_set_only_normalizes():
+    df = pd.DataFrame({"free_text": [NFD, SENTENCE], "label_id": [0, 1]})
+    noisy = build_noisy_set(df, NFC_ONLY, 1105)
+    assert noisy["free_text"].tolist() == ["thằng này", SENTENCE]
+    assert noisy["changed"].tolist() == [False, False]  # so với bản gốc đã NFC
+
+
+def test_nfc_control_is_added_only_when_needed():
+    assert count_non_nfc(small_df()["free_text"]) == 0
+    assert "nfc_only" not in make_noisy_test_sets(small_df(), CONFIG, 1105, ABBREV)
+    df = pd.concat([small_df(), pd.DataFrame({"free_text": [NFD], "label_id": [0]})])
+    sets = make_noisy_test_sets(df.reset_index(drop=True), CONFIG, 1105, ABBREV)
+    assert len(sets) == 10 and "nfc_only" in sets
+
+
+def test_compare_with_manifest_detects_changes():
+    sets = make_noisy_test_sets(small_df(), CONFIG, 1105, ABBREV)
+    manifest = {
+        "sets": {n: {"sha256": hashlib.sha256(csv_bytes(d)).hexdigest()} for n, d in sets.items()}
+    }
+    assert compare_with_manifest(sets, manifest) == []
+    # Seed khác -> hash khác: manifest bắt được.
+    other = make_noisy_test_sets(small_df(), CONFIG, 1106, ABBREV)
+    assert compare_with_manifest(other, manifest)
+    # Thiếu một bộ cũng phải báo.
+    del sets["all_light"]
+    assert compare_with_manifest(sets, manifest) == ["all_light"]
+
+
+def test_csv_bytes_use_lf_and_utf8():
+    data = csv_bytes(pd.DataFrame({"free_text": ["thằng"], "label_id": [0]}))
+    assert b"\r\n" not in data and "thằng".encode() in data
+
+
+def test_count_changed_words():
+    assert count_changed_words("tôi không biết", "tôi ko biết") == 1
+    assert count_changed_words("tôi không biết", "tôi không biết") == 0
