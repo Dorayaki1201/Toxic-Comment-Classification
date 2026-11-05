@@ -1,6 +1,6 @@
 # Sinh nhiễu (src/noise.py, D-023). rate = xác suất mỗi từ bị biến đổi.
 # Bộ test nhiễu: từng biến đổi riêng ở mức medium + tất cả ghép lại ở 3 mức.
-# Seed của bộ test nhiễu và của tăng cường cấu hình D sẽ được ghi vào decisions.md trước khi chạy.
+# Seed của bộ test nhiễu ghi ở D-025; seed tăng cường cấu hình D (tuần 5) phải khác.
 levels:
   light: 0.1
   medium: 0.3
@@ -17,3 +17,9 @@ transforms:
 
 # Bảng cho "abbreviate": rút từ ViLexNorm TRAIN (CC BY-NC-SA 4.0), độc lập với teencode.tsv (D-024).
 abbreviations: resources/noise_abbrev.tsv
+
+# Bộ test nhiễu từ ViHSD test (D-025): python -m src.noise --make-test-sets [--check]
+test_sets:
+  seed: 1105
+  out_dir: data/noisy/vihsd_test        # CSV, không commit
+  manifest: reports/noisy_test/manifest.json  # có commit: seed, hash đầu vào, hash từng bộ
