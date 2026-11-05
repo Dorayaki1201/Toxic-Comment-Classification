@@ -162,6 +162,11 @@ python -m src.keywords --min-count 10 --contexts 10 --seed 42
 # Đo lớp luật + từ điển trên train: số câu bị đổi, mẫu từng lần thay để chấm precision
 python -m src.normalize --lexicon --samples 100 --seed 2027
 
+# Sinh nhiễu (D-023): xem thử trên mẫu TRAIN, % câu/từ bị đổi theo từng biến đổi và mức
+python -m src.noise --samples 5 --seed 42
+# Xây bảng viết tắt cho nhiễu từ ViLexNorm TRAIN -> resources/noise_abbrev.tsv (D-024)
+python -m src.noise --build-abbrev data/raw/vilexnorm/data/train.csv --min-count 3
+
 # Chạy demo
 python app/app.py
 ```
@@ -218,7 +223,7 @@ python app/app.py
 - [x] Test đơn vị cho `normalize.py`
 
 **Tuần 4: Sinh nhiễu và bộ test nhiễu**
-- [ ] `noise.py` với các mức độ và seed
+- [x] `noise.py` với các mức độ và seed (6 biến đổi, D-023; viết tắt từ ViLexNorm train, D-024; đổi emoji hoãn)
 - [ ] Tạo bộ test nhiễu từ test gốc
 - [ ] Đo mức tụt điểm của cấu hình A
 

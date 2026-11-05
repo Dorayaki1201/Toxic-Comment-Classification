@@ -38,7 +38,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/data.py` | nạp ViHSD, kiểm tra định dạng, xử lý dòng lỗi | ✅ xong | `tests/test_data.py` |
 | `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds (✅, kết quả: `data/README.md` mục 7); ứng viên từ điển teencode (✅ D-022) | ✅ xong | `tests/test_keywords.py` |
 | `src/normalize.py` | lớp luật: số thay chữ, ký tự chèn, ký tự kéo dài (✅ 3a, D-021); từ điển teencode (✅ 3b, D-022, precision 0.98 trên train); nối vào train/evaluate (⬜ 3c) | 🟡 | `tests/test_normalize.py` |
-| `src/noise.py` | sinh nhiễu theo mức độ + seed | ⬜ tuần 4 | |
+| `src/noise.py` | 5 biến đổi theo ký tự, mức độ + seed (✅ D-023); viết tắt theo bảng từ ViLexNorm train (✅ D-024); tạo bộ test nhiễu (⬜) | 🟡 | `tests/test_noise.py` |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
 | `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⏸ hoãn, D-020) | 🟡 | `tests/test_transformer.py` |
 | `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu, bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
@@ -128,13 +128,33 @@ python -m src.normalize --lexicon --samples 100 --seed 2027  # đo thêm từ đ
 - Các hàm chuẩn hóa là hàm thuần; chỉ `load_lexicon` đọc file. Từ điển được truyền vào dưới dạng `dict`, nên test dùng từ điển nhỏ viết trong code (D-006).
 - Chưa được gọi trong train/evaluate (phần 3c). Khi làm cấu hình B phải gọi `normalize(text, load_lexicon())`.
 
+### `src/noise.py` (tuần 4, D-023)
+
+```
+perturb(text, transforms, rate, rng, abbreviations=None) -> str  # mỗi từ bị chọn với xác suất rate, chịu đúng MỘT biến đổi
+perturb_texts(texts, transforms, rate, seed, abbreviations=None) -> list[str]  # câu thứ i dùng rng_for(seed, i)
+rng_for(seed, key) -> random.Random           # Random(f"{seed}-{key}"): ổn định giữa các lần chạy
+strip_diacritics(word) -> str                 # "Đường" -> "Duong"
+TRANSFORM_NAMES: abbreviate ("không" -> "ko", cần bảng), teencode_chars ("phở" -> "fở"),
+            remove_diacritics, elongate ("điien"), substitute_digits ("ng0"), insert_chars ("n.g.u")
+extract_word_pairs(original, normalized) -> [(viết tắt, chuẩn)]  # gióng hàng 1-1 bằng difflib
+count_abbreviations(pairs) / build_abbreviations(counts, min_count) -> {chuẩn: {viết tắt: count}}
+load_abbreviations(path) / save_abbreviations(table, path)       # resources/noise_abbrev.tsv
+python -m src.noise --samples 5 --seed 42     # xem thử trên mẫu TRAIN: % câu và % từ bị đổi + ví dụ
+python -m src.noise --build-abbrev data/raw/vilexnorm/data/train.csv  # xây bảng + thống kê (D-024)
+```
+
+- Mức độ (`configs/noise.yaml`): light 0.1, medium 0.3, heavy 0.5 = tỉ lệ từ bị đổi, kể cả khi ghép nhiều biến đổi.
+- Các hàm sinh nhiễu là hàm thuần, không đọc dữ liệu: bên gọi quyết định đưa tập nào vào. Không dùng `resources/teencode.tsv` (D-022); bảng viết tắt chỉ rút từ ViLexNorm **train** (D-024).
+
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 
 | Việc | Được dùng | Không được dùng |
 |---|---|---|
 | Xây từ điển teencode, thống kê từ khóa | train | dev, test |
 | Sinh nhiễu để tăng cường (cấu hình D) | train | dev, test |
-| Sinh nhiễu (cả tăng cường lẫn bộ test nhiễu) | bảng biến đổi xây độc lập | `resources/teencode.tsv` (đánh giá vòng tròn, D-022) |
+| Sinh nhiễu (cả tăng cường lẫn bộ test nhiễu) | bảng biến đổi xây độc lập (ViLexNorm train, D-024) | `resources/teencode.tsv` (đánh giá vòng tròn, D-022) |
+| Xây bảng viết tắt cho nhiễu | ViLexNorm train | ViLexNorm dev/test (để dành đo `normalize.py`) |
 | Chọn siêu tham số, chọn mô hình | dev | test |
 | Chọn epoch tốt nhất của transformer | dev | test |
 | Chọn `max_length` | train (phân bố số token) | dev, test |
