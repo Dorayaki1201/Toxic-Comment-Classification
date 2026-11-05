@@ -227,7 +227,7 @@ python app/app.py
 
 **Tuần 4: Sinh nhiễu và bộ test nhiễu**
 - [x] `noise.py` với các mức độ và seed (6 biến đổi, D-023; viết tắt từ ViLexNorm train, D-024; đổi emoji hoãn)
-- [ ] Tạo bộ test nhiễu từ test gốc
+- [x] Tạo bộ test nhiễu từ test gốc (9 bộ + đối chứng `nfc_only`, seed 1105, D-025; manifest `reports/noisy_test/`)
 - [ ] Đo mức tụt điểm của cấu hình A
 
 **Tuần 5: Cấu hình C và D**
