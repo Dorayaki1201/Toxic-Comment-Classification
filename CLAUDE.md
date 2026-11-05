@@ -166,6 +166,9 @@ python -m src.normalize --lexicon --samples 100 --seed 2027
 python -m src.noise --samples 5 --seed 42
 # Xây bảng viết tắt cho nhiễu từ ViLexNorm TRAIN -> resources/noise_abbrev.tsv (D-024)
 python -m src.noise --build-abbrev data/raw/vilexnorm/data/train.csv --min-count 3
+# Bộ test nhiễu từ ViHSD TEST (D-025, seed trong configs/noise.yaml) -> data/noisy/vihsd_test/ + manifest
+python -m src.noise --make-test-sets
+python -m src.noise --make-test-sets --check   # tái lập: so hash với reports/noisy_test/manifest.json
 
 # Chạy demo
 python app/app.py

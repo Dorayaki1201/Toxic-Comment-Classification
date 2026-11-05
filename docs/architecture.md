@@ -38,7 +38,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/data.py` | nạp ViHSD, kiểm tra định dạng, xử lý dòng lỗi | ✅ xong | `tests/test_data.py` |
 | `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds (✅, kết quả: `data/README.md` mục 7); ứng viên từ điển teencode (✅ D-022) | ✅ xong | `tests/test_keywords.py` |
 | `src/normalize.py` | lớp luật: số thay chữ, ký tự chèn, ký tự kéo dài (✅ 3a, D-021); từ điển teencode (✅ 3b, D-022, precision 0.98 trên train); nối vào train/evaluate (⬜ 3c) | 🟡 | `tests/test_normalize.py` |
-| `src/noise.py` | 5 biến đổi theo ký tự, mức độ + seed (✅ D-023); viết tắt theo bảng từ ViLexNorm train (✅ D-024); tạo bộ test nhiễu (⬜) | 🟡 | `tests/test_noise.py` |
+| `src/noise.py` | 5 biến đổi theo ký tự, mức độ + seed (✅ D-023); viết tắt theo bảng từ ViLexNorm train (✅ D-024); tạo bộ test nhiễu (✅ code, D-025) | 🟡 | `tests/test_noise.py` |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
 | `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⏸ hoãn, D-020) | 🟡 | `tests/test_transformer.py` |
 | `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu, bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
@@ -144,6 +144,20 @@ python -m src.noise --samples 5 --seed 42     # xem thử trên mẫu TRAIN: % c
 python -m src.noise --build-abbrev data/raw/vilexnorm/data/train.csv  # xây bảng + thống kê (D-024)
 ```
 
+**Bộ test nhiễu (D-025):**
+
+```
+noisy_test_specs(config) -> list[NoisySpec]   # 6 bộ <biến đổi>_medium + all_light/medium/heavy
+build_noisy_set(df, spec, seed, abbreviations) -> DataFrame  # row_id, free_text, label_id, changed
+make_noisy_test_sets(df, config, seed, abbreviations) -> {tên: DataFrame}  # + nfc_only nếu cần
+compare_with_manifest(sets, manifest) -> list[str]           # bộ có hash khác manifest
+python -m src.noise --make-test-sets          # ViHSD TEST -> data/noisy/vihsd_test/<bộ>.csv + manifest
+python -m src.noise --make-test-sets --check  # sinh lại, so hash với reports/noisy_test/manifest.json
+```
+
+- Seed 1105 (`configs/noise.yaml`), câu i của bộ `<tên>` dùng `rng_for(1105, "<tên>-<i>")`: các bộ độc lập. Cấu hình D phải dùng seed khác.
+- CSV không commit; manifest có commit (seed, hash `noise.py` + bảng viết tắt, thống kê + sha256 từng bộ). `noise.py` đóng băng từ lần tạo đầu.
+- `row_id` = vị trí trong `load_vihsd("test")`; khi đánh giá, seen/unseen tính theo câu gốc qua `row_id`.
 - Mức độ (`configs/noise.yaml`): light 0.1, medium 0.3, heavy 0.5 = tỉ lệ từ bị đổi, kể cả khi ghép nhiều biến đổi.
 - Các hàm sinh nhiễu là hàm thuần, không đọc dữ liệu: bên gọi quyết định đưa tập nào vào. Không dùng `resources/teencode.tsv` (D-022); bảng viết tắt chỉ rút từ ViLexNorm **train** (D-024).
 
@@ -158,7 +172,7 @@ python -m src.noise --build-abbrev data/raw/vilexnorm/data/train.csv  # xây b�
 | Chọn siêu tham số, chọn mô hình | dev | test |
 | Chọn epoch tốt nhất của transformer | dev | test |
 | Chọn `max_length` | train (phân bố số token) | dev, test |
-| Tạo bộ test nhiễu | test (chỉ để đánh giá) | |
+| Tạo bộ test nhiễu | test (chỉ để đánh giá), seed 1105 (D-025) | chỉnh `noise.py` sau khi đã tạo bộ; seed 1105 cho cấu hình D |
 | Báo cáo kết quả cuối | test, chạy một lần | |
 
 Mọi module mới phải ghi rõ nó dùng tập nào, và test phải kiểm tra được điều đó nếu khả thi.
