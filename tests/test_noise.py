@@ -1,18 +1,27 @@
 import random
 import re
 import unicodedata
+from collections import Counter
 
 import pytest
 
 from src.noise import (
+    DEFAULT_ABBREV_PATH,
     INSERT_CHARS,
     TRANSFORMS,
+    abbreviate_word,
+    build_abbreviations,
+    count_abbreviations,
     digit_word,
     elongate_word,
+    explained_by_char_transforms,
+    extract_word_pairs,
     insert_word,
+    load_abbreviations,
     perturb,
     perturb_texts,
     rng_for,
+    save_abbreviations,
     strip_diacritics,
     teencode_word,
 )
@@ -181,7 +190,91 @@ def test_input_is_normalized_to_nfc():
     assert perturb(nfd, [], 1.0, rng()) == "thằng"
 
 
-@pytest.mark.parametrize(("names", "rate"), [(["no_such"], 0.5), (["elongate"], 1.5)])
+@pytest.mark.parametrize(
+    ("names", "rate"), [(["no_such"], 0.5), (["elongate"], 1.5), (["abbreviate"], 0.5)]
+)
 def test_invalid_arguments_raise(names, rate):
+    # "abbreviate" không có bảng viết tắt cũng phải báo lỗi, không lặng lẽ bỏ qua.
     with pytest.raises(ValueError):
         perturb(SENTENCE, names, rate, rng())
+
+
+# --- Bảng viết tắt (D-024). Bảng nhỏ viết trong code, không đọc ViLexNorm. ---
+
+ABBREV = {"không": {"k": 3, "ko": 1}, "tôi": {"t": 1}}
+
+
+@pytest.mark.parametrize(
+    ("original", "normalized", "expected"),
+    [
+        ("t k biết", "tôi không biết", [("t", "tôi"), ("k", "không")]),
+        ("Ê k khóc được =))?", "Ê không khóc được =))?", [("k", "không")]),
+        ("thế k?", "thế không?", [("k", "không")]),  # dấu câu dính vào từ
+        ("ng0 quá", "ngo quá", []),  # có số: không phải chữ cái, bỏ
+        ("đ.ịt", "địt", []),
+        ("ntn", "như thế nào", []),  # 1 -> 3 từ: bỏ
+        ("y hệt", "y hệt", []),
+    ],
+)
+def test_extract_word_pairs(original, normalized, expected):
+    assert extract_word_pairs(original, normalized) == expected
+
+
+@pytest.mark.parametrize(
+    ("noisy", "standard"),
+    [("nóiii", "nói"), ("khong", "không"), ("fải", "phải"), ("j", "gì"), ("Khong", "không")],
+)
+def test_explained_by_char_transforms(noisy, standard):
+    assert explained_by_char_transforms(noisy, standard)
+
+
+@pytest.mark.parametrize(
+    ("noisy", "standard"), [("ko", "không"), ("thoai", "thôi"), ("đc", "được"), ("t", "tôi")]
+)
+def test_not_explained_by_char_transforms(noisy, standard):
+    assert not explained_by_char_transforms(noisy, standard)
+
+
+def test_count_abbreviations_skips_char_noise_and_merges_elongation():
+    pairs = [("ko nóiii", "không nói"), ("kooo khong", "không không"), ("lunnn", "luôn")]
+    assert count_abbreviations(pairs) == Counter({("không", "ko"): 2, ("luôn", "lun"): 1})
+
+
+def test_build_abbreviations_applies_min_count_and_sorts():
+    counts = Counter({("không", "ko"): 2, ("không", "k"): 5, ("tôi", "t"): 1})
+    table = build_abbreviations(counts, min_count=2)
+    assert table == {"không": {"k": 5, "ko": 2}}
+    assert list(table["không"]) == ["k", "ko"]
+
+
+def test_save_and_load_abbreviations_roundtrip(tmp_path):
+    path = tmp_path / "abbrev.tsv"
+    save_abbreviations(ABBREV, path)
+    assert load_abbreviations(path) == ABBREV
+
+
+def test_load_abbreviations_rejects_duplicates(tmp_path):
+    path = tmp_path / "abbrev.tsv"
+    path.write_text("normalized\tvariant\tcount\nkhông\tk\t3\nkhông\tk\t2\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_abbreviations(path)
+
+
+def test_abbreviate_follows_frequency_and_keeps_case():
+    results = Counter(abbreviate_word("không", rng(seed), ABBREV) for seed in range(2000))
+    assert set(results) == {"k", "ko"}
+    assert 0.70 < results["k"] / 2000 < 0.80  # trọng số 3 : 1
+    assert abbreviate_word("Không", rng(), {"không": {"ko": 1}}) == "Ko"
+    assert abbreviate_word("bạn", rng(), ABBREV) == "bạn"
+
+
+def test_perturb_with_abbreviations():
+    noisy = perturb("Tôi không biết", ["abbreviate"], 1.0, rng(), ABBREV)
+    assert noisy in {"T k biết", "T ko biết"}
+
+
+def test_committed_abbreviation_table_loads():
+    # File thật trong resources/ phải đọc được và không có dạng kéo dài (đã gộp khi đếm).
+    table = load_abbreviations(DEFAULT_ABBREV_PATH)
+    assert table["không"]
+    assert not any(re.search(r"(.)\1\1", v) for variants in table.values() for v in variants)

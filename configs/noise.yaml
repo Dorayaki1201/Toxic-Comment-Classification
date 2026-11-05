@@ -6,11 +6,14 @@ levels:
   medium: 0.3
   heavy: 0.5
 
-# Thứ tự ở đây chỉ để liệt kê; khi ghép, perturb luôn áp theo thứ tự cố định trong code.
-# "abbreviate" (bảng viết tắt) thêm sau khi có nguồn độc lập; "đổi emoji" hoãn (D-023).
+# Thứ tự ở đây không ảnh hưởng kết quả. "đổi emoji" hoãn (D-023).
 transforms:
+  - abbreviate
   - teencode_chars
   - remove_diacritics
   - elongate
   - substitute_digits
   - insert_chars
+
+# Bảng cho "abbreviate": rút từ ViLexNorm TRAIN (CC BY-NC-SA 4.0), độc lập với teencode.tsv (D-024).
+abbreviations: resources/noise_abbrev.tsv
