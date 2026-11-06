@@ -169,6 +169,9 @@ python -m src.noise --build-abbrev data/raw/vilexnorm/data/train.csv --min-count
 # Bộ test nhiễu từ ViHSD TEST (D-025, seed trong configs/noise.yaml) -> data/noisy/vihsd_test/ + manifest
 python -m src.noise --make-test-sets
 python -m src.noise --make-test-sets --check   # tái lập: so hash với reports/noisy_test/manifest.json
+# Mức tụt trên bộ test nhiễu (D-026, mô hình đóng băng; không ghi đè test_metrics.json)
+python -m src.evaluate --config configs/tfidf_lr_wordchar_balanced.yaml --noisy-test
+# ViSoBERT: trên Kaggle theo docs/kaggle.md mục 5 (--seed 42/43/44, rồi --summarize-seeds 42 43 44)
 
 # Chạy demo
 python app/app.py
