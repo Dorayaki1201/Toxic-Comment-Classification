@@ -41,7 +41,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/noise.py` | 5 biến đổi theo ký tự, mức độ + seed (✅ D-023); viết tắt theo bảng từ ViLexNorm train (✅ D-024); bộ test nhiễu (✅ 9 bộ + `nfc_only`, D-025) | ✅ xong | `tests/test_noise.py` |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
 | `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⏸ hoãn, D-020) | 🟡 | `tests/test_transformer.py` |
-| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu, bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
+| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu (✅ D-026, kết quả cấu hình A: `reports/noisy_test/config_a.md`); bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
 | `src/moderation.py` | logic xử lý sau phân loại | ⬜ tuần 7 | |
 | `app/app.py` | Gradio demo | ⬜ tuần 7 | |
 
@@ -161,6 +161,23 @@ python -m src.noise --make-test-sets --check  # sinh lại, so hash với report
 - Mức độ (`configs/noise.yaml`): light 0.1, medium 0.3, heavy 0.5 = tỉ lệ từ bị đổi, kể cả khi ghép nhiều biến đổi.
 - Các hàm sinh nhiễu là hàm thuần, không đọc dữ liệu: bên gọi quyết định đưa tập nào vào. Không dùng `resources/teencode.tsv` (D-022); bảng viết tắt chỉ rút từ ViLexNorm **train** (D-024).
 
+### `src/evaluate.py`: bộ test nhiễu (tuần 4, D-026)
+
+```
+load_noisy_set(path) -> DataFrame              # câu rỗng / "nan" giữ là chuỗi
+check_noisy_set(noisy, labels, path, sha256)   # sai hash manifest / row_id / nhãn -> ValueError
+reference_set_name(config, set_names) -> str   # transformer: nfc_only; baseline: original
+noisy_set_metrics(y_true, pred, pred_ref, seen, changed) -> dict  # + mức tụt, đổi nhãn, phần câu bị đổi
+evaluate_noisy(config_path, seed) -> dict      # original + mọi bộ trong manifest
+summarize_noisy_seeds(name, seeds) -> dict     # mức tụt tính trong từng seed rồi mới gộp
+python -m src.evaluate --config X --noisy-test [--seed S]       # -> reports/<tên>/noisy_test_metrics.json
+python -m src.evaluate --config X --noisy-test --summarize-seeds 42 43 44  # -> noisy_test_summary.json
+```
+
+- **Đọc:** CSV ở `data/noisy/vihsd_test/` (kiểm hash với manifest đã commit), test gốc (nhãn, seen theo câu gốc qua `row_id`), train (chỉ để tính seen). Không đọc dev.
+- **Ghi:** `noisy_test_metrics.json` và `noisy_test_predictions.csv` (`row_id` + nhãn đoán từng bộ, không có văn bản, để so cặp A/B/C/D ở tuần 6). Không ghi đè `test_metrics.json`; điểm `original` đoán lại được so với file đó (`original_matches_committed_test`).
+- Baseline phải đoán giống hệt trên `nfc_only` và `original` (nó tự NFC); khác thì dừng.
+
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 
 | Việc | Được dùng | Không được dùng |
@@ -173,6 +190,7 @@ python -m src.noise --make-test-sets --check  # sinh lại, so hash với report
 | Chọn epoch tốt nhất của transformer | dev | test |
 | Chọn `max_length` | train (phân bố số token) | dev, test |
 | Tạo bộ test nhiễu | test (chỉ để đánh giá), seed 1105 (D-025) | chỉnh `noise.py` sau khi đã tạo bộ; seed 1105 cho cấu hình D |
+| Đo mức tụt trên bộ test nhiễu | mô hình đã đóng băng (D-026) | chỉnh mô hình, `normalize.py`, nhiễu của D hay ngưỡng theo kết quả |
 | Báo cáo kết quả cuối | test, chạy một lần | |
 
 Mọi module mới phải ghi rõ nó dùng tập nào, và test phải kiểm tra được điều đó nếu khả thi.

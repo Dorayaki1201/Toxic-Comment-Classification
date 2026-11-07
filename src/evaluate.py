@@ -2,9 +2,12 @@
 
 Chạy trên test chỉ một lần, sau khi đã chốt cấu hình bằng dev:
     python -m src.evaluate --config configs/<tên>.yaml --split test
+Bộ test nhiễu (D-025, D-026), mô hình đã đóng băng:
+    python -m src.evaluate --config configs/<tên>.yaml --noisy-test [--seed S]
 """
 
 import argparse
+import hashlib
 import json
 import unicodedata
 from pathlib import Path
@@ -21,8 +24,8 @@ from sklearn.metrics import (
 )
 
 from src.data import LABEL_COL, LABEL_NAMES, TEXT_COL, load_vihsd
-from src.models import load_model
-from src.utils import get_logger, load_config, with_seed
+from src.models import load_model, model_type
+from src.utils import get_logger, load_config, set_seed, with_seed
 
 logger = get_logger(__name__)
 
@@ -176,10 +179,250 @@ def summarize_seeds(
     return summary
 
 
+# --- Bộ test nhiễu (D-025, D-026) ---
+
+NOISY_COLUMNS = ("row_id", TEXT_COL, LABEL_COL, "changed")
+ORIGINAL_SET = "original"  # test gốc, đoán lại trong cùng lần chạy để đối chiếu
+
+
+def load_noisy_set(path: str | Path) -> pd.DataFrame:
+    """Đọc một bộ nhiễu do src.noise ghi ra; câu rỗng hay chữ "nan" vẫn là chuỗi, không NaN."""
+    df = pd.read_csv(
+        path,
+        dtype={TEXT_COL: str, "changed": bool},
+        keep_default_na=False,
+    )
+    missing = [col for col in NOISY_COLUMNS if col not in df.columns]
+    if missing:
+        raise ValueError(f"{path}: thiếu cột {missing}")
+    return df
+
+
+def sha256_file(path: str | Path) -> str:
+    """sha256 của đúng các byte trên đĩa (src.noise ghi CSV bằng LF, không cần đổi xuống dòng)."""
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def check_noisy_set(
+    noisy: pd.DataFrame, labels: np.ndarray, path: str | Path, expected_sha256: str
+) -> None:
+    """Dừng (ValueError) nếu bộ nhiễu không khớp manifest hoặc không gióng hàng với test gốc.
+
+    Kiểm tra: hash file đúng như manifest đã commit, đủ số dòng, row_id = 0..n-1 theo thứ tự,
+    nhãn trùng nhãn test gốc từng dòng.
+    """
+    if sha256_file(path) != expected_sha256:
+        raise ValueError(f"{path}: sha256 khác manifest (D-025), không dùng bộ này")
+    if len(noisy) != len(labels):
+        raise ValueError(f"{path}: {len(noisy)} dòng, test gốc có {len(labels)}")
+    if not np.array_equal(noisy["row_id"].to_numpy(), np.arange(len(labels))):
+        raise ValueError(f"{path}: row_id không phải 0..n-1 theo thứ tự")
+    if not np.array_equal(noisy[LABEL_COL].to_numpy(), labels):
+        raise ValueError(f"{path}: nhãn khác test gốc")
+
+
+def prediction_flip_rate(pred_reference: np.ndarray, pred_noisy: np.ndarray) -> float:
+    """Tỉ lệ câu có nhãn dự đoán khác với bộ tham chiếu (không cần nhãn thật)."""
+    return float(np.mean(np.asarray(pred_reference) != np.asarray(pred_noisy)))
+
+
+def reference_set_name(config: dict[str, Any], set_names: list[str]) -> str:
+    """Bộ để tính mức tụt: transformer so với `nfc_only` (nó không tự NFC, D-025), baseline
+    so với test gốc (baseline tự NFC trong models.py)."""
+    if model_type(config) == "transformer" and "nfc_only" in set_names:
+        return "nfc_only"
+    return ORIGINAL_SET
+
+
+def noisy_set_metrics(
+    y_true: np.ndarray,
+    pred: np.ndarray,
+    pred_reference: np.ndarray,
+    seen: np.ndarray,
+    changed: np.ndarray | None,
+) -> dict[str, Any]:
+    """Chỉ số của một bộ: toàn bộ, seen/unseen (theo câu gốc), phần câu bị đổi, mức tụt.
+
+    `seen` phải đã được gióng theo row_id của câu gốc. Mức tụt = điểm bộ tham chiếu − điểm bộ
+    này (dương = tụt). Phần câu bị đổi so với chính những câu đó ở bộ tham chiếu.
+    """
+    metrics = compute_metrics(y_true.tolist(), pred.tolist())
+    reference = compute_metrics(y_true.tolist(), pred_reference.tolist())
+    metrics["drop_macro_f1"] = reference["macro_f1"] - metrics["macro_f1"]
+    metrics["flip_rate"] = prediction_flip_rate(pred_reference, pred)
+    metrics["seen_in_train"] = subset_metrics(y_true, pred, seen)
+    metrics["unseen_in_train"] = subset_metrics(y_true, pred, ~seen)
+    if changed is not None and changed.any():
+        noisy_part = subset_metrics(y_true, pred, changed)
+        reference_part = subset_metrics(y_true, pred_reference, changed)
+        metrics["changed_rows"] = {
+            "rows": noisy_part["rows"],
+            "macro_f1": noisy_part["macro_f1"],
+            "reference_macro_f1": reference_part["macro_f1"],
+            "drop_macro_f1": reference_part["macro_f1"] - noisy_part["macro_f1"],
+            "flip_rate": prediction_flip_rate(pred_reference[changed], pred[changed]),
+        }
+    return metrics
+
+
+def _committed_test_check(
+    report_dir: Path, macro_f1: float, tolerance: float = 1e-9
+) -> dict[str, Any]:
+    """So điểm test gốc vừa đoán lại với test_metrics.json đã có: khớp = đúng mô hình đã báo cáo."""
+    path = report_dir / "test_metrics.json"
+    if not path.exists():
+        return {"committed_macro_f1": None, "matches": None}
+    committed = json.loads(path.read_text(encoding="utf-8"))["macro_f1"]
+    return {"committed_macro_f1": committed, "matches": abs(committed - macro_f1) <= tolerance}
+
+
+def evaluate_noisy(
+    config_path: str | Path,
+    seed: int | None = None,
+    models_dir: str | Path = "models",
+    reports_dir: str | Path = "reports",
+    noise_config_path: str | Path = "configs/noise.yaml",
+) -> dict[str, Any]:
+    """Đánh giá một mô hình đã đóng băng trên test gốc + mọi bộ nhiễu trong manifest (D-026).
+
+    Ghi reports/<tên>/noisy_test_metrics.json và noisy_test_predictions.csv (row_id + nhãn
+    đoán từng bộ, không có văn bản). Không ghi đè test_metrics.json.
+    """
+    config = load_config(config_path)
+    if seed is not None:
+        config = with_seed(config, seed)
+    set_seed(config["seed"])
+    name = config["name"]
+    settings = load_config(noise_config_path)["test_sets"]
+    manifest = json.loads(Path(settings["manifest"]).read_text(encoding="utf-8"))
+    noisy_dir = Path(settings["out_dir"])
+
+    model = load_model(config, models_dir)
+    test = load_vihsd("test", config["data_dir"])
+    train_texts = load_vihsd("train", config["data_dir"])[TEXT_COL]
+    y_true = test[LABEL_COL].to_numpy()
+    # seen/unseen theo CÂU GỐC: câu nhiễu gần như không bao giờ trùng train (D-025).
+    seen_original = find_seen(test[TEXT_COL], train_texts).to_numpy()
+
+    predictions = {ORIGINAL_SET: np.asarray(model.predict(test[TEXT_COL]))}
+    seen = {ORIGINAL_SET: seen_original}
+    changed: dict[str, np.ndarray | None] = {ORIGINAL_SET: None}
+    for set_name, info in manifest["sets"].items():
+        path = noisy_dir / f"{set_name}.csv"
+        noisy = load_noisy_set(path)
+        check_noisy_set(noisy, y_true, path, info["sha256"])
+        row_ids = noisy["row_id"].to_numpy()
+        predictions[set_name] = np.asarray(model.predict(noisy[TEXT_COL]))
+        seen[set_name] = seen_original[row_ids]
+        changed[set_name] = noisy["changed"].to_numpy()
+
+    if model_type(config) != "transformer" and "nfc_only" in predictions:
+        # Baseline tự NFC, nên nfc_only phải cho đúng các dự đoán của test gốc.
+        if not np.array_equal(predictions["nfc_only"], predictions[ORIGINAL_SET]):
+            raise ValueError("Baseline đoán khác nhau trên nfc_only và test gốc: bộ bị lệch hàng?")
+
+    reference = reference_set_name(config, list(predictions))
+    sets = {
+        set_name: noisy_set_metrics(
+            y_true, pred, predictions[reference], seen[set_name], changed[set_name]
+        )
+        for set_name, pred in predictions.items()
+    }
+    check = _committed_test_check(Path(reports_dir) / name, sets[ORIGINAL_SET]["macro_f1"])
+    report = {
+        "config": name,
+        "decision": "D-026",
+        "rows": len(test),
+        "reference_set": reference,
+        "noise_seed": manifest["seed"],
+        "noise_inputs": manifest["inputs"],
+        "original_matches_committed_test": check,
+        "sets": sets,
+    }
+    out_dir = Path(reports_dir) / name
+    save_metrics(report, out_dir / "noisy_test_metrics.json")
+    pd.DataFrame({"row_id": np.arange(len(test)), **predictions}).to_csv(
+        out_dir / "noisy_test_predictions.csv", index=False, lineterminator="\n"
+    )
+
+    if check["matches"] is False:
+        logger.warning(
+            f"{name}: test gốc ra {sets[ORIGINAL_SET]['macro_f1']:.6f}, khác "
+            f"test_metrics.json ({check['committed_macro_f1']:.6f}): KHÔNG phải mô hình đã báo cáo"
+        )
+    logger.info(f"{name} | tham chiếu: {reference}")
+    for set_name, m in sets.items():
+        logger.info(
+            f"{name} | {set_name:26s} macro-F1 {m['macro_f1']:.4f} | tụt {m['drop_macro_f1']:+.4f}"
+            f" | đổi nhãn {m['flip_rate']:.2%}"
+        )
+    return report
+
+
+def summarize_noisy_seeds(
+    name: str, seeds: list[int], reports_dir: str | Path = "reports"
+) -> dict[str, Any]:
+    """Gộp noisy_test_metrics.json của các seed: trung bình ± độ lệch chuẩn từng bộ.
+
+    Mức tụt được tính trong từng seed trước rồi mới gộp (so cặp trong cùng một mô hình).
+    """
+    runs = [
+        json.loads(
+            (Path(reports_dir) / f"{name}_s{seed}" / "noisy_test_metrics.json").read_text("utf-8")
+        )
+        for seed in seeds
+    ]
+    references = {run["reference_set"] for run in runs}
+    if len(references) != 1:
+        raise ValueError(f"Các seed dùng bộ tham chiếu khác nhau: {references}")
+
+    def stat(set_name: str, getter) -> dict[str, Any]:
+        return _mean_std([getter(run["sets"][set_name]) for run in runs])
+
+    sets = {}
+    for set_name, first in runs[0]["sets"].items():
+        sets[set_name] = {
+            "macro_f1": stat(set_name, lambda m: m["macro_f1"]),
+            "drop_macro_f1": stat(set_name, lambda m: m["drop_macro_f1"]),
+            "flip_rate": stat(set_name, lambda m: m["flip_rate"]),
+            "unseen_macro_f1": stat(set_name, lambda m: m["unseen_in_train"]["macro_f1"]),
+            "per_class_f1": {
+                label: stat(set_name, lambda m, label=label: m["per_class"][label]["f1"])
+                for label in LABEL_NAMES.values()
+            },
+        }
+        if "changed_rows" in first:
+            sets[set_name]["changed_rows_drop_macro_f1"] = stat(
+                set_name, lambda m: m["changed_rows"]["drop_macro_f1"]
+            )
+    summary = {
+        "config": name,
+        "seeds": list(seeds),
+        "reference_set": references.pop(),
+        "original_matches_committed_test": [
+            run["original_matches_committed_test"]["matches"] for run in runs
+        ],
+        "sets": sets,
+    }
+    save_metrics(summary, Path(reports_dir) / name / "noisy_test_summary.json")
+    for set_name, s in sets.items():
+        m, d = s["macro_f1"], s["drop_macro_f1"]
+        logger.info(
+            f"{name} | {set_name:26s} macro-F1 {m['mean']:.4f} ± {m['std']:.4f}"
+            f" | tụt {d['mean']:+.4f} ± {d['std']:.4f}"
+        )
+    return summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Đánh giá mô hình đã train trên một tập.")
     parser.add_argument("--config", required=True)
-    parser.add_argument("--split", required=True, choices=["dev", "test"])
+    parser.add_argument("--split", choices=["dev", "test"])
+    parser.add_argument(
+        "--noisy-test",
+        action="store_true",
+        help="đánh giá trên test gốc + bộ test nhiễu (D-026); không ghi đè test_metrics.json",
+    )
     parser.add_argument("--seed", type=int, help="đánh giá mô hình <tên>_s<seed>")
     parser.add_argument(
         "--summarize-seeds",
@@ -189,6 +432,17 @@ def main() -> None:
         help="chỉ gộp các báo cáo <tên>_s<seed> đã có thành trung bình ± độ lệch chuẩn",
     )
     args = parser.parse_args()
+    if args.noisy_test == bool(args.split):
+        parser.error("chọn đúng một trong --split hoặc --noisy-test")
+    if args.noisy_test:
+        if args.summarize_seeds:
+            summarize_noisy_seeds(load_config(args.config)["name"], args.summarize_seeds)
+            return
+        logger.warning(
+            "Bộ test nhiễu suy ra từ TEST: mô hình đóng băng, không chỉnh gì theo kết quả (D-026)."
+        )
+        evaluate_noisy(args.config, seed=args.seed)
+        return
     if args.summarize_seeds:
         name = load_config(args.config)["name"]
         summarize_seeds(name, args.summarize_seeds, args.split)

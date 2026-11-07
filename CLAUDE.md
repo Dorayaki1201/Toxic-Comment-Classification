@@ -169,6 +169,9 @@ python -m src.noise --build-abbrev data/raw/vilexnorm/data/train.csv --min-count
 # Bộ test nhiễu từ ViHSD TEST (D-025, seed trong configs/noise.yaml) -> data/noisy/vihsd_test/ + manifest
 python -m src.noise --make-test-sets
 python -m src.noise --make-test-sets --check   # tái lập: so hash với reports/noisy_test/manifest.json
+# Mức tụt trên bộ test nhiễu (D-026, mô hình đóng băng; không ghi đè test_metrics.json)
+python -m src.evaluate --config configs/tfidf_lr_wordchar_balanced.yaml --noisy-test
+# ViSoBERT: trên Kaggle theo docs/kaggle.md mục 5 (--seed 42/43/44, rồi --summarize-seeds 42 43 44)
 
 # Chạy demo
 python app/app.py
@@ -228,7 +231,7 @@ python app/app.py
 **Tuần 4: Sinh nhiễu và bộ test nhiễu**
 - [x] `noise.py` với các mức độ và seed (6 biến đổi, D-023; viết tắt từ ViLexNorm train, D-024; đổi emoji hoãn)
 - [x] Tạo bộ test nhiễu từ test gốc (9 bộ + đối chứng `nfc_only`, seed 1105, D-025; manifest `reports/noisy_test/`)
-- [ ] Đo mức tụt điểm của cấu hình A
+- [x] Đo mức tụt điểm của cấu hình A (D-026, `reports/noisy_test/config_a.md`: ViSoBERT tụt 0.101 ở `all_medium`, baseline 0.037)
 
 **Tuần 5: Cấu hình C và D**
 - [ ] Seq2seq chuẩn hóa (ViT5/BARTpho) trên cặp nhiễu-chuẩn sinh tự động

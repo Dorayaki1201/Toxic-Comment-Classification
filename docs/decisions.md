@@ -282,3 +282,31 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
   Các bộ một biến đổi có % từ đổi khác nhau vì không phải từ nào cũng áp được mọi biến đổi (`abbreviate` chỉ đổi từ có trong bảng, `teencode_chars` chỉ đổi từ khớp luật). Khi so mức tụt giữa các bộ phải đọc kèm cột này.
 - **Lý do:** seed ghi trước khi tạo thì không thể chọn seed "đẹp" sau khi thấy kết quả. Luồng riêng mỗi bộ cho một câu trả lời đơn giản khi bị hỏi ("các bộ độc lập"). Manifest có hash thay cho việc commit dữ liệu.
 - **Đánh đổi:** chỉ một seed nhiễu nên chưa biết phương sai do nhiễu (có thể tạo thêm 2 seed cho `all_medium` ở tuần 6). Các mức không lồng nhau (từ bị đổi ở light không chắc nằm trong medium). Giả định nhiễu không đổi nhãn, dựa trên đọc mẫu train (D-023). Phương án bỏ: dùng chung `rng_for(seed, i)` cho mọi bộ; commit CSV.
+
+## D-026. Đo mức tụt của cấu hình A trên bộ test nhiễu; quy tắc ghi trước khi chạy
+
+- **Ngày:** 06/11/2026 (ghi **trước** mọi lần chạy trên bộ nhiễu, kể cả baseline trên máy)
+- **Bối cảnh:** bộ test nhiễu đã có (D-025). Cần hàng A của bảng A/B/C/D: `tfidf_lr_wordchar_balanced` (tất định, D-013) và `visobert_balanced` seed 42/43/44 (D-019). Mô hình ViSoBERT **không còn** (output Kaggle trống, chưa từng Save Version), nên phải tái tạo.
+- **Quyết định (cách đo):**
+  - `python -m src.evaluate --config X --noisy-test [--seed S]` đoán trên test gốc (`original`) và mọi bộ trong manifest. Kết quả ghi vào `reports/<tên>/noisy_test_metrics.json` và `noisy_test_predictions.csv` (chỉ `row_id` + nhãn đoán, không có văn bản). **Không ghi đè `test_metrics.json`.**
+  - **Tham chiếu để tính mức tụt:** ViSoBERT so với `nfc_only` (transformer không tự NFC, D-025), baseline so với `original`. Mức tụt = điểm tham chiếu − điểm bộ nhiễu, tính bằng điểm macro-F1 tuyệt đối. Với 3 seed: tính mức tụt trong từng seed rồi mới gộp trung bình ± độ lệch chuẩn mẫu.
+  - Mỗi bộ báo: macro-F1, F1 từng lớp, confusion matrix; seen/unseen theo **câu gốc** qua `row_id` (D-014); chỉ số trên phần câu bị đổi (`changed`) so với chính những câu đó ở bộ tham chiếu; tỉ lệ đổi nhãn dự đoán so với bộ tham chiếu.
+  - **Kiểm tra tự động:** sha256 từng CSV phải khớp manifest đã commit; `row_id` = 0..n−1 và nhãn trùng test gốc; baseline phải đoán giống hệt trên `nfc_only` và `original`; điểm `original` đoán lại được so với `test_metrics.json` đã commit (ghi `matches` vào báo cáo).
+- **Quyết định (tái tạo ViSoBERT):**
+  - Train lại `visobert_balanced` seed 42/43/44 với **đúng** config đó. Code huấn luyện (`transformer.py`, `train.py`, `models.py`, `data.py`, `utils.py`), config và `requirements.txt` không đổi từ commit `9131a36` sinh ra kết quả test. Trọng số `uitnlp/visobert` không đổi: commit mới nhất `196a62afad9c` (09/06/2024, chỉ sửa README), kiểm tra qua API HuggingFace ngày 06/11/2026. Notebook Kaggle cố định môi trường cũ (pin original environment), GPU T4.
+  - Ba cổng kiểm tra: (1) phiên bản torch/transformers/GPU so với `dev_metrics.json` cũ (2.11.0+cu128, 4.57.6, Tesla T4); (2) `git diff` 3 file `dev_metrics.json` sau khi train (không chạm test); (3) điểm `original` so với `test_metrics.json` đã commit.
+  - **Không chạy `--split test`** (sẽ ghi đè mốc đối chiếu).
+  - **Quy tắc nếu số không khớp:** không thử seed khác, môi trường khác hay chạy lại nhiều lần để "tìm" bản khớp; không chọn lại cấu hình (đã chọn ở D-019). Dùng 3 mô hình mới; giữ nguyên các file `dev_metrics.json`/`test_metrics.json` cũ (cơ sở của D-019) và ghi số dev, test sạch của bộ mô hình mới vào mục kết quả ở đây; báo cả số cũ 0.694 lẫn số mới. Mức tụt vẫn hợp lệ vì được so trong cùng một mô hình. Con số trong CV khi đó lấy theo bộ mô hình mới.
+  - Lần này giữ mô hình: chạy bằng Save Version → Save & Run All để `/kaggle/working` (gồm `models/`) được lưu làm output (`docs/kaggle.md`).
+- **Có vi phạm D-011 không:** không. D-011 cấm chọn hoặc chỉnh mô hình theo test. Ở đây mô hình đã đóng băng, không có lựa chọn nào phụ thuộc kết quả, cùng loại với lần chạy lại ở D-014. Cổng (3) chứng minh mô hình đo là mô hình đã báo cáo.
+- **Rủi ro mềm và cam kết:** biết A yếu ở biến đổi nào có thể khiến ta vô tình chỉnh B, C, D theo đúng điểm yếu đó, biến test nhiễu thành dev. Vì vậy:
+  1. Kết quả chỉ dùng để báo cáo và phân tích; không đổi mô hình, `noise.py`, bộ nhiễu hay ngưỡng nào theo kết quả.
+  2. Từ nay mọi thay đổi ở `normalize.py` và mọi lựa chọn cho C/D phải dựa trên train/dev, kèm bằng chứng từ train/dev ghi ở đây.
+  3. Tuần 5 tạo **bộ dev nhiễu** (từ dev, seed khác 1105 và khác seed tăng cường của D) để chọn siêu tham số cho C/D.
+- **Giới hạn đã biết khi đọc kết quả:** một seed nhiễu; các bộ có % từ bị đổi khác nhau (bảng D-025), nên so giữa các bộ phải đọc kèm cột đó; chưa có khoảng tin cậy (tuần 6, dùng `noisy_test_predictions.csv` để bootstrap/so cặp); phần câu bị đổi là tập con theo nhiễu, không theo nhãn.
+- **Phương án bỏ:** một tham chiếu chung cho cả hai mô hình (trộn ảnh hưởng của NFC vào ViSoBERT); lấy trung bình điểm qua seed rồi mới trừ (phương sai lớn hơn); tính seen trên câu nhiễu (gần như mọi câu thành unseen).
+- **Kết quả (06–07/11/2026, chi tiết ở `reports/noisy_test/config_a.md`):**
+  - **Baseline** (máy cá nhân): test gốc 0.6431, khớp `test_metrics.json`; `nfc_only` cho dự đoán giống hệt. Mức tụt: `all_light` 0.013, `all_medium` 0.037, `all_heavy` 0.067; nặng nhất là `insert_chars_medium` (0.065).
+  - **Tái tạo ViSoBERT** (Kaggle, cùng môi trường và GPU): s43, s44 khớp tuyệt đối ở cả dev và test. **s42 lệch** 1 câu train, 1 câu dev (macro-F1 dev 0.7251 → 0.7256) và test gốc 0.6965 → 0.6962. Áp dụng quy tắc đã ghi: dùng 3 mô hình mới, giữ nguyên file dev/test cũ. Test gốc của bộ mới 0.6939 ± 0.0034 (cũ 0.6940 ± 0.0035). Nguyên nhân có thể là phép tính không tất định trên GPU; chưa kiểm chứng.
+  - **ViSoBERT** (3 seed, so với `nfc_only` 0.6951 ± 0.0037): tụt `all_light` 0.043 ± 0.010, `all_medium` 0.101 ± 0.012, `all_heavy` 0.182 ± 0.007; `insert_chars_medium` tụt 0.210 ± 0.017. Ở `all_medium` ViSoBERT (0.594) đã thấp hơn baseline (0.606). Vẫn hơn baseline ở viết tắt, `teencode_chars`, bỏ dấu, `all_light`.
+  - Không chỉnh mô hình, `noise.py` hay bộ nhiễu theo kết quả. Mô hình ViSoBERT mới được lưu trong output của version Kaggle `D-026 …`.
