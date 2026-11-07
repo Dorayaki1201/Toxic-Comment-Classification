@@ -305,4 +305,8 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
   3. Tuần 5 tạo **bộ dev nhiễu** (từ dev, seed khác 1105 và khác seed tăng cường của D) để chọn siêu tham số cho C/D.
 - **Giới hạn đã biết khi đọc kết quả:** một seed nhiễu; các bộ có % từ bị đổi khác nhau (bảng D-025), nên so giữa các bộ phải đọc kèm cột đó; chưa có khoảng tin cậy (tuần 6, dùng `noisy_test_predictions.csv` để bootstrap/so cặp); phần câu bị đổi là tập con theo nhiễu, không theo nhãn.
 - **Phương án bỏ:** một tham chiếu chung cho cả hai mô hình (trộn ảnh hưởng của NFC vào ViSoBERT); lấy trung bình điểm qua seed rồi mới trừ (phương sai lớn hơn); tính seen trên câu nhiễu (gần như mọi câu thành unseen).
-- **Kết quả:** TODO (điền sau khi chạy, chi tiết ở `reports/noisy_test/config_a.md`).
+- **Kết quả (06–07/11/2026, chi tiết ở `reports/noisy_test/config_a.md`):**
+  - **Baseline** (máy cá nhân): test gốc 0.6431, khớp `test_metrics.json`; `nfc_only` cho dự đoán giống hệt. Mức tụt: `all_light` 0.013, `all_medium` 0.037, `all_heavy` 0.067; nặng nhất là `insert_chars_medium` (0.065).
+  - **Tái tạo ViSoBERT** (Kaggle, cùng môi trường và GPU): s43, s44 khớp tuyệt đối ở cả dev và test. **s42 lệch** 1 câu train, 1 câu dev (macro-F1 dev 0.7251 → 0.7256) và test gốc 0.6965 → 0.6962. Áp dụng quy tắc đã ghi: dùng 3 mô hình mới, giữ nguyên file dev/test cũ. Test gốc của bộ mới 0.6939 ± 0.0034 (cũ 0.6940 ± 0.0035). Nguyên nhân có thể là phép tính không tất định trên GPU; chưa kiểm chứng.
+  - **ViSoBERT** (3 seed, so với `nfc_only` 0.6951 ± 0.0037): tụt `all_light` 0.043 ± 0.010, `all_medium` 0.101 ± 0.012, `all_heavy` 0.182 ± 0.007; `insert_chars_medium` tụt 0.210 ± 0.017. Ở `all_medium` ViSoBERT (0.594) đã thấp hơn baseline (0.606). Vẫn hơn baseline ở viết tắt, `teencode_chars`, bỏ dấu, `all_light`.
+  - Không chỉnh mô hình, `noise.py` hay bộ nhiễu theo kết quả. Mô hình ViSoBERT mới được lưu trong output của version Kaggle `D-026 …`.

@@ -231,7 +231,7 @@ python app/app.py
 **Tuần 4: Sinh nhiễu và bộ test nhiễu**
 - [x] `noise.py` với các mức độ và seed (6 biến đổi, D-023; viết tắt từ ViLexNorm train, D-024; đổi emoji hoãn)
 - [x] Tạo bộ test nhiễu từ test gốc (9 bộ + đối chứng `nfc_only`, seed 1105, D-025; manifest `reports/noisy_test/`)
-- [ ] Đo mức tụt điểm của cấu hình A
+- [x] Đo mức tụt điểm của cấu hình A (D-026, `reports/noisy_test/config_a.md`: ViSoBERT tụt 0.101 ở `all_medium`, baseline 0.037)
 
 **Tuần 5: Cấu hình C và D**
 - [ ] Seq2seq chuẩn hóa (ViT5/BARTpho) trên cặp nhiễu-chuẩn sinh tự động
