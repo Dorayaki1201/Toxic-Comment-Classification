@@ -171,6 +171,9 @@ python -m src.noise --make-test-sets
 python -m src.noise --make-test-sets --check   # tái lập: so hash với reports/noisy_test/manifest.json
 # Mức tụt trên bộ test nhiễu (D-026, mô hình đóng băng; không ghi đè test_metrics.json)
 python -m src.evaluate --config configs/tfidf_lr_wordchar_balanced.yaml --noisy-test
+# Bộ dev nhiễu từ ViHSD DEV (D-027, seed 2611): dùng để chọn cho B/C/D thay cho bộ test nhiễu
+python -m src.noisy_dev
+python -m src.noisy_dev --check   # tái lập: so hash với reports/noisy_dev/manifest.json
 # ViSoBERT: trên Kaggle theo docs/kaggle.md mục 5 (--seed 42/43/44, rồi --summarize-seeds 42 43 44)
 
 # Chạy demo
