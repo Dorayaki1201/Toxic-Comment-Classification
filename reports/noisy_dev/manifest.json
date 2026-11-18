@@ -1,0 +1,150 @@
+{
+  "decision": "D-027",
+  "source": "load_vihsd('dev', 'data/raw/vihsd')",
+  "seed": 2611,
+  "rng_key": "rng_for(seed, f'{tên bộ}-{i}')",
+  "rows": 2672,
+  "nfc_changed_rows": 72,
+  "levels": {
+    "light": 0.1,
+    "medium": 0.3,
+    "heavy": 0.5
+  },
+  "transforms": [
+    "abbreviate",
+    "teencode_chars",
+    "remove_diacritics",
+    "elongate",
+    "substitute_digits",
+    "insert_chars"
+  ],
+  "inputs": {
+    "src/noise.py": "0dd4b01fe0662b7b0eae62664635c4db3c01218966284f3147e1346cbe4a2654",
+    "resources/noise_abbrev.tsv": "19c8de7ac6a9a13194488c0e872c7fd656858fe02e05d99681e56b27bf7f8191"
+  },
+  "sets": {
+    "abbreviate_medium": {
+      "transforms": [
+        "abbreviate"
+      ],
+      "rate": 0.3,
+      "rows": 2672,
+      "sentences_changed": 1410,
+      "sentences_changed_pct": 52.77,
+      "words_changed_pct_approx": 8.58,
+      "sha256": "a2995b584f2a90b4a6b323c57cc07453cdee51d88eaf18178e6d3fa090423614"
+    },
+    "teencode_chars_medium": {
+      "transforms": [
+        "teencode_chars"
+      ],
+      "rate": 0.3,
+      "rows": 2672,
+      "sentences_changed": 1343,
+      "sentences_changed_pct": 50.26,
+      "words_changed_pct_approx": 7.6,
+      "sha256": "785aa306ef874bf2b1605cfd05745e8eb371b596a0e2c81c23ac7e51e8a01953"
+    },
+    "remove_diacritics_medium": {
+      "transforms": [
+        "remove_diacritics"
+      ],
+      "rate": 0.3,
+      "rows": 2672,
+      "sentences_changed": 2006,
+      "sentences_changed_pct": 75.07,
+      "words_changed_pct_approx": 20.34,
+      "sha256": "331406966e1c9e6946e05f59addd716fe401d67ee21b087511b2b1d11f46041d"
+    },
+    "elongate_medium": {
+      "transforms": [
+        "elongate"
+      ],
+      "rate": 0.3,
+      "rows": 2672,
+      "sentences_changed": 2275,
+      "sentences_changed_pct": 85.14,
+      "words_changed_pct_approx": 25.89,
+      "sha256": "1b980fd0c3b38e21217ed96e9b354e5edbd7fb290219fec30bc9f1d34624e2d8"
+    },
+    "substitute_digits_medium": {
+      "transforms": [
+        "substitute_digits"
+      ],
+      "rate": 0.3,
+      "rows": 2672,
+      "sentences_changed": 2173,
+      "sentences_changed_pct": 81.32,
+      "words_changed_pct_approx": 23.38,
+      "sha256": "e60fc93aa313cb427b99d6e46342589da78068507043472ad1888013a25859cd"
+    },
+    "insert_chars_medium": {
+      "transforms": [
+        "insert_chars"
+      ],
+      "rate": 0.3,
+      "rows": 2672,
+      "sentences_changed": 2266,
+      "sentences_changed_pct": 84.81,
+      "words_changed_pct_approx": 26.14,
+      "sha256": "44caa3b828ff802ad1a6ba6f6fc96f24783bd033a057283c1d41da0ba6198fcb"
+    },
+    "all_light": {
+      "transforms": [
+        "abbreviate",
+        "teencode_chars",
+        "remove_diacritics",
+        "elongate",
+        "substitute_digits",
+        "insert_chars"
+      ],
+      "rate": 0.1,
+      "rows": 2672,
+      "sentences_changed": 1457,
+      "sentences_changed_pct": 54.53,
+      "words_changed_pct_approx": 8.82,
+      "sha256": "9fac2352c0a991ea63a588b5b061949de0244a3427ba7db8b36cfb65abb727eb"
+    },
+    "all_medium": {
+      "transforms": [
+        "abbreviate",
+        "teencode_chars",
+        "remove_diacritics",
+        "elongate",
+        "substitute_digits",
+        "insert_chars"
+      ],
+      "rate": 0.3,
+      "rows": 2672,
+      "sentences_changed": 2280,
+      "sentences_changed_pct": 85.33,
+      "words_changed_pct_approx": 27.11,
+      "sha256": "734479f8695dca6c7f1dd31070d114905760fd0fdee955e1fb5677c555d19d61"
+    },
+    "all_heavy": {
+      "transforms": [
+        "abbreviate",
+        "teencode_chars",
+        "remove_diacritics",
+        "elongate",
+        "substitute_digits",
+        "insert_chars"
+      ],
+      "rate": 0.5,
+      "rows": 2672,
+      "sentences_changed": 2520,
+      "sentences_changed_pct": 94.31,
+      "words_changed_pct_approx": 45.53,
+      "sha256": "30c23ed56d527f3c7f9a57fcc92d0fce733f1837fe77b3670ecfb64480198b9d"
+    },
+    "nfc_only": {
+      "transforms": [],
+      "rate": 0.0,
+      "rows": 2672,
+      "sentences_changed": 0,
+      "sentences_changed_pct": 0.0,
+      "words_changed_pct_approx": 0.0,
+      "sha256": "fe1bd3216be7a493c6e2dabb5862287ec073e1aa985259bec09bd411034eec59"
+    }
+  }
+}
