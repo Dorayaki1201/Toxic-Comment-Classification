@@ -42,7 +42,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/noisy_dev.py` | bộ dev nhiễu từ ViHSD dev, seed 2611, dùng lại hàm của `noise.py` (✅ D-027) | ✅ xong | `tests/test_noisy_dev.py` |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
 | `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⏸ hoãn, D-020) | 🟡 | `tests/test_transformer.py` |
-| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu (✅ D-026, kết quả cấu hình A: `reports/noisy_test/config_a.md`); bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
+| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu (✅ D-026, kết quả cấu hình A: `reports/noisy_test/config_a.md`); dev nhiễu (✅ D-027, `--noisy-dev`); bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
 | `src/moderation.py` | logic xử lý sau phân loại | ⬜ tuần 7 | |
 | `app/app.py` | Gradio demo | ⬜ tuần 7 | |
 
@@ -191,6 +191,18 @@ python -m src.evaluate --config X --noisy-test --summarize-seeds 42 43 44  # -> 
 - **Đọc:** CSV ở `data/noisy/vihsd_test/` (kiểm hash với manifest đã commit), test gốc (nhãn, seen theo câu gốc qua `row_id`), train (chỉ để tính seen). Không đọc dev.
 - **Ghi:** `noisy_test_metrics.json` và `noisy_test_predictions.csv` (`row_id` + nhãn đoán từng bộ, không có văn bản, để so cặp A/B/C/D ở tuần 6). Không ghi đè `test_metrics.json`; điểm `original` đoán lại được so với file đó (`original_matches_committed_test`).
 - Baseline phải đoán giống hệt trên `nfc_only` và `original` (nó tự NFC); khác thì dừng.
+
+**Bộ dev nhiễu (D-027):** cùng hàm, tham số `split="dev"` (cờ `--noisy-dev`).
+
+```
+evaluate_noisy(config_path, seed, split="dev")  # đọc dev_sets trong configs/noise.yaml + dev gốc
+committed_macro_f1(report_dir, split)           # test: test_metrics["macro_f1"]; dev: dev_metrics["dev"]["macro_f1"]
+python -m src.evaluate --config X --noisy-dev [--seed S]   # -> reports/<tên>/noisy_dev_metrics.json
+python -m src.evaluate --config X --noisy-dev --summarize-seeds 42 43 44  # -> noisy_dev_summary.json
+```
+
+- **Đọc:** CSV ở `data/noisy/vihsd_dev/`, dev gốc, train (chỉ để tính seen). Không đọc test.
+- Tên file và khóa theo tập: `noisy_<split>_metrics.json`, `original_matches_committed_<split>`. Với `split="test"` kết quả giữ nguyên từng byte như trước khi thêm dev (đã kiểm bằng `git diff --exit-code reports/` sau khi chạy lại baseline, 18/11/2026).
 
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
 

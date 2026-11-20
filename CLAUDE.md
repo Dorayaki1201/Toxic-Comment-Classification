@@ -174,6 +174,9 @@ python -m src.evaluate --config configs/tfidf_lr_wordchar_balanced.yaml --noisy-
 # Bộ dev nhiễu từ ViHSD DEV (D-027, seed 2611): dùng để chọn cho B/C/D thay cho bộ test nhiễu
 python -m src.noisy_dev
 python -m src.noisy_dev --check   # tái lập: so hash với reports/noisy_dev/manifest.json
+# Mức tụt trên bộ dev nhiễu (D-027): mốc để chọn cho B/C/D; cổng "đúng mô hình" so với dev_metrics.json
+python -m src.evaluate --config configs/tfidf_lr_wordchar_balanced.yaml --noisy-dev
+python -m src.evaluate --config configs/visobert_balanced.yaml --noisy-dev --summarize-seeds 42 43 44
 # ViSoBERT: trên Kaggle theo docs/kaggle.md mục 5 (--seed 42/43/44, rồi --summarize-seeds 42 43 44)
 
 # Chạy demo

@@ -10,6 +10,7 @@ import yaml
 from src.data import LABEL_COL, TEXT_COL
 from src.evaluate import (
     check_noisy_set,
+    committed_macro_f1,
     compute_metrics,
     evaluate_noisy,
     evaluate_saved_model,
@@ -338,6 +339,62 @@ def test_evaluate_noisy_stops_when_baseline_differs_on_nfc_only(tmp_path):
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(ValueError, match="nfc_only"):
         run_noisy(tmp_path, config_path, noise_cfg_path)
+
+
+def make_noisy_dev_project(tmp_path):
+    """Như make_noisy_project nhưng bộ nhiễu sinh từ dev.csv và ghi vào mục dev_sets.
+
+    test.csv vẫn tồn tại với câu khác hẳn: nếu code lỡ đọc test thì số dòng/nhãn sẽ lệch.
+    """
+    config_path, _, _, _ = make_noisy_project(tmp_path)
+    data_dir = tmp_path / "data"
+    dev_texts = ["chó chạy nhanh", "mèo ngủ ngon", "cá to", "mèo", "chó lười"]
+    dev = pd.DataFrame({TEXT_COL: dev_texts, LABEL_COL: [1, 0, 2, 0, 1]})
+    dev.to_csv(data_dir / "dev.csv", index=False)
+
+    noisy_dir = tmp_path / "noisy_dev"
+    noisy_dir.mkdir()
+    spec = NoisySpec("all_heavy", ("remove_diacritics",), 1.0)
+    sha = write_noisy_csv(noisy_dir / "all_heavy.csv", build_noisy_set(dev, spec, seed=2))
+    manifest_path = tmp_path / "manifest_dev.json"
+    manifest = {"seed": 2, "inputs": {}, "sets": {"all_heavy": {"sha256": sha}}}
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    noise_cfg = {"dev_sets": {"out_dir": str(noisy_dir), "manifest": str(manifest_path)}}
+    noise_cfg_path = tmp_path / "noise_dev.yaml"
+    noise_cfg_path.write_text(yaml.safe_dump(noise_cfg), encoding="utf-8")
+    return config_path, noise_cfg_path
+
+
+def test_evaluate_noisy_dev_reads_dev_and_writes_dev_files(tmp_path):
+    config_path, noise_cfg_path = make_noisy_dev_project(tmp_path)
+    report = evaluate_noisy(
+        config_path,
+        models_dir=tmp_path / "models",
+        reports_dir=tmp_path / "reports",
+        noise_config_path=noise_cfg_path,
+        split="dev",
+    )
+    assert report["decision"] == "D-027" and report["rows"] == 5
+    assert set(report["sets"]) == {"original", "all_heavy"}
+    # "mèo ngủ ngon" và "chó chạy nhanh" có trong train.
+    assert report["sets"]["all_heavy"]["seen_in_train"]["rows"] == 2
+    assert report["original_matches_committed_dev"]["matches"] is None
+    out = tmp_path / "reports" / "toy"
+    assert (out / "noisy_dev_metrics.json").exists() and (
+        out / "noisy_dev_predictions.csv"
+    ).exists()
+    assert not (out / "noisy_test_metrics.json").exists()
+
+
+def test_committed_check_reads_dev_block_of_dev_metrics(tmp_path):
+    # dev_metrics.json do train.py ghi: điểm dev nằm trong khối "dev", không ở gốc như test.
+    save_metrics(
+        {"train": {"macro_f1": 0.99}, "dev": {"macro_f1": 0.7}}, tmp_path / "dev_metrics.json"
+    )
+    assert committed_macro_f1(tmp_path, "dev") == 0.7
+    save_metrics({"macro_f1": 0.6}, tmp_path / "test_metrics.json")
+    assert committed_macro_f1(tmp_path, "test") == 0.6
+    assert committed_macro_f1(tmp_path / "missing", "dev") is None
 
 
 def write_noisy_report(reports_dir, name, seed, scores, reference="nfc_only"):
