@@ -163,3 +163,64 @@ run("zip -qr reports.zip reports && ls -lh reports.zip")
 ```
 
 Tải về: `reports.zip` (giải nén đè lên `reports/` ở máy, rồi `git status` / `git diff` để xem file nào đổi). `models/visobert_balanced_s4x/` ở lại trong output của version này. Ở lần sau, thêm output đó làm Input thì không phải train lại.
+
+## 6. ViSoBERT trên bộ dev nhiễu (D-027), không train lại
+
+Chỉ suy luận: nạp 3 mô hình từ output của version `D-026 …` (mục 5), đoán trên dev gốc + 10 bộ dev nhiễu. Không cần Save Version (không có mô hình mới cần giữ), chạy phiên thường là đủ. Trước đó: nhánh `feat/noisy-dev` đã được push; notebook có Accelerator **GPU T4**, Internet bật.
+
+Cột phải, **Add Input**: (1) dataset `vihsd`; (2) tab **Notebook Output Files** (tên tab có thể khác theo giao diện Kaggle), chọn notebook ở mục 5 và đúng version `D-026 …`.
+
+```python
+# Ô 1: hàm chạy lệnh (dừng nếu lỗi) + lấy code
+import os, subprocess
+
+
+def run(cmd):
+    print(f"$ {cmd}", flush=True)
+    subprocess.run(cmd, shell=True, check=True, executable="/bin/bash")
+
+
+run(
+    "git clone --branch feat/noisy-dev https://github.com/Dorayaki1201/Toxic-Comment-Classification.git repo"
+)
+os.chdir("repo")
+run("git log --oneline -1")
+run('pip install -q "transformers==4.57.6" "accelerate==1.15.0" "sentencepiece==0.2.2"')
+run(
+    'python -c "import torch, transformers; print(torch.__version__, transformers.__version__, torch.cuda.get_device_name(0))"'
+)
+```
+
+```python
+# Ô 2: dữ liệu + mô hình. Tìm theo tên thay vì đoán đường dẫn /kaggle/input.
+# Đúng: in ra dev.csv test.csv train.csv, rồi 3 thư mục visobert_balanced_s42/s43/s44.
+run(
+    'mkdir -p data/raw && rm -f data/raw/vihsd && ln -s "$(dirname "$(find /kaggle/input -name train.csv | head -1)")" data/raw/vihsd && ls data/raw/vihsd'
+)
+run(
+    'rm -rf models && ln -s "$(dirname "$(find /kaggle/input -type d -name visobert_balanced_s42 | head -1)")" models && ls models'
+)
+run("RUN_NETWORK_TESTS=1 python -m pytest -q -m network")
+```
+
+```python
+# Ô 3: tạo bộ dev nhiễu, so với manifest ĐÃ COMMIT (lệnh tạo ghi đè manifest, nên git diff), rồi --check
+run("python -m src.noisy_dev")
+run("git diff --exit-code -- reports/noisy_dev/manifest.json")
+run("python -m src.noisy_dev --check")
+```
+
+```python
+# Ô 4: 3 seed trên dev nhiễu + gộp. Cổng "đúng mô hình": original_matches_committed_dev.
+# Biết trước (D-027): s42 ra matches = False (mô hình tái tạo lệch 1 câu dev, D-026); s43, s44 phải True.
+for s in (42, 43, 44):
+    run(
+        f"CUDA_VISIBLE_DEVICES=0 python -m src.evaluate --config configs/visobert_balanced.yaml --noisy-dev --seed {s}"
+    )
+run(
+    "python -m src.evaluate --config configs/visobert_balanced.yaml --noisy-dev --summarize-seeds 42 43 44"
+)
+run("zip -qr noisy_dev_reports.zip reports/visobert_balanced* && ls -lh noisy_dev_reports.zip")
+```
+
+Tải về `noisy_dev_reports.zip` (tab Output, hoặc mở thư mục `/kaggle/working/repo` ở cột phải), giải nén đè lên thư mục gốc của repo ở máy, rồi `git status`: chỉ được có file **mới** `noisy_dev_*` trong `reports/visobert_balanced_s4x/` và `reports/visobert_balanced/`; file cũ không được đổi.
