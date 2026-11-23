@@ -240,6 +240,7 @@ python app/app.py
 - [x] Đo mức tụt điểm của cấu hình A (D-026, `reports/noisy_test/config_a.md`: ViSoBERT tụt 0.101 ở `all_medium`, baseline 0.037)
 
 **Tuần 5: Cấu hình C và D**
+- [x] Bộ dev nhiễu làm mốc chọn cho B/C/D (seed 2611, D-027; cấu hình A trên dev nhiễu: ViSoBERT tụt 0.123 ở `all_medium`, `reports/noisy_dev/config_a.md`)
 - [ ] Seq2seq chuẩn hóa (ViT5/BARTpho) trên cặp nhiễu-chuẩn sinh tự động
 - [ ] Huấn luyện đối kháng (cấu hình D)
 

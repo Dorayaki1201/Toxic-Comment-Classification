@@ -42,7 +42,7 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/noisy_dev.py` | bộ dev nhiễu từ ViHSD dev, seed 2611, dùng lại hàm của `noise.py` (✅ D-027) | ✅ xong | `tests/test_noisy_dev.py` |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
 | `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⏸ hoãn, D-020) | 🟡 | `tests/test_transformer.py` |
-| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu (✅ D-026, kết quả cấu hình A: `reports/noisy_test/config_a.md`); dev nhiễu (✅ D-027, `--noisy-dev`); bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
+| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu (✅ D-026, kết quả cấu hình A: `reports/noisy_test/config_a.md`); dev nhiễu (✅ D-027, `--noisy-dev`, mốc cấu hình A: `reports/noisy_dev/config_a.md`); bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
 | `src/moderation.py` | logic xử lý sau phân loại | ⬜ tuần 7 | |
 | `app/app.py` | Gradio demo | ⬜ tuần 7 | |
 

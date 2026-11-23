@@ -326,3 +326,8 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Lý do:** cùng bộ sinh và cùng danh sách bộ thì một lựa chọn tốt trên dev nhiễu có ý nghĩa với test nhiễu; seed ghi trước thì không thể chọn seed "đẹp". Module riêng giữ nguyên hash `noise.py` nên `--check` của bộ test vẫn khớp.
 - **Đánh đổi:** khoảng 40 dòng code ghi file và manifest lặp lại giữa `noise.py` và `noisy_dev.py`. Dùng dev nhiều lần để chọn có thể quá khớp dev: ghi lại mọi lần thử và lựa chọn ở đây; test chỉ chạy một lần cuối.
 - **Phương án bỏ:** thêm tham số `split` vào `_make_test_sets` (đổi hash `noise.py`, phá cam kết đóng băng); dùng chung seed 1105 cho dev; đổi `--noisy-test` thành `--noisy {dev,test}` (phải sửa mọi lệnh đã ghi trong tài liệu).
+- **Kết quả** (`reports/noisy_dev/config_a.md`):
+  - Bộ dev nhiễu tạo xong, `--check` khớp; hash `noise.py` không đổi nên `--check` của bộ test vẫn khớp.
+  - Mức tụt ở `all_medium`: baseline 0.039 (0.6330 → 0.5939); ViSoBERT **0.123 ± 0.017** (0.7225 ± 0.0059 → 0.5999 ± 0.0122). Chèn ký tự gây hại nặng nhất: ViSoBERT tụt 0.221 ± 0.023.
+  - Cổng "đúng mô hình": baseline và ViSoBERT s44 khớp; s42 lệch 1 câu dev, đúng như dự đoán. **s43 lệch 1 câu dev, ngoài dự đoán** (0.7268 → 0.7281, một câu OFFENSIVE nay được đoán đúng). Lần chạy này dùng torch `2.11.0+cu130`, lúc train dùng `+cu128`. Đây là nguyên nhân khả dĩ, chưa kiểm chứng. Không chạy lại để tìm lần chạy khớp (D-026). Bài học: muốn khớp từng câu thì phải cố định cả bản build CUDA, không chỉ số phiên bản torch.
+  - Tính đại diện: xu hướng giống test nhiễu (cùng thứ tự gây hại; ViSoBERT tụt khoảng 3 lần baseline). Ở mọi bộ được so, ViSoBERT tụt trên dev nhiều hơn trên test từ 0.004 đến 0.025. Ghi lại, không sửa bộ.
