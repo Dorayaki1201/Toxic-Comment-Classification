@@ -310,3 +310,24 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
   - **Tái tạo ViSoBERT** (Kaggle, cùng môi trường và GPU): s43, s44 khớp tuyệt đối ở cả dev và test. **s42 lệch** 1 câu train, 1 câu dev (macro-F1 dev 0.7251 → 0.7256) và test gốc 0.6965 → 0.6962. Áp dụng quy tắc đã ghi: dùng 3 mô hình mới, giữ nguyên file dev/test cũ. Test gốc của bộ mới 0.6939 ± 0.0034 (cũ 0.6940 ± 0.0035). Nguyên nhân có thể là phép tính không tất định trên GPU; chưa kiểm chứng.
   - **ViSoBERT** (3 seed, so với `nfc_only` 0.6951 ± 0.0037): tụt `all_light` 0.043 ± 0.010, `all_medium` 0.101 ± 0.012, `all_heavy` 0.182 ± 0.007; `insert_chars_medium` tụt 0.210 ± 0.017. Ở `all_medium` ViSoBERT (0.594) đã thấp hơn baseline (0.606). Vẫn hơn baseline ở viết tắt, `teencode_chars`, bỏ dấu, `all_light`.
   - Không chỉnh mô hình, `noise.py` hay bộ nhiễu theo kết quả. Mô hình ViSoBERT mới được lưu trong output của version Kaggle `D-026 …`.
+
+## D-027. Bộ dev nhiễu: cùng 9 bộ + `nfc_only` từ ViHSD dev, seed 2611; giữ chỗ seed 3907 cho tăng cường cấu hình D
+
+- **Ngày:** 18/11/2026 (seed ghi **trước** khi viết code tạo bộ)
+- **Bối cảnh:** D-026 cam kết mọi lựa chọn cho B/C/D dựa trên train/dev, không dựa trên bộ test nhiễu. Cần một bản dev nhiễu dựng giống bộ test nhiễu để chọn và so sánh trong tuần 5. ViHSD dev có 2672 dòng, 72 câu thay đổi khi đưa về NFC (đếm ngày 07/11/2026, chỉ đọc dev).
+- **Quyết định:**
+  - **Cùng danh sách bộ với D-025** (`noisy_test_specs`: 6 bộ `<biến đổi>_medium` + `all_light/medium/heavy`), sinh từ `load_vihsd("dev")`; thêm `nfc_only` vì dev có câu không ở dạng NFC. Giữ số dòng, thứ tự, nhãn; `row_id` trỏ về dev gốc.
+  - **Seed 2611**, chưa dùng ở bước nào (đã dùng: 42/43/44 train, 2027 chấm normalize, 1105 test nhiễu). Câu i của bộ `<tên>` dùng `rng_for(2611, "<tên>-<i>")`.
+  - **Giữ chỗ seed 3907** cho nhiễu tăng cường train của cấu hình D. Cách dùng (rate, biến đổi nào) do thiết kế cấu hình D quyết. Ba seed khác nhau nên chuỗi khóa của `rng_for` không bao giờ trùng giữa test nhiễu, dev nhiễu và tăng cường.
+  - **Không sửa `noise.py`** (đóng băng, D-025). Module mới `src/noisy_dev.py` chỉ import các hàm thuần của `noise.py`. Dừng nếu hash `noise.py` hoặc `noise_abbrev.tsv` khác `inputs` trong manifest test (chứng minh cùng bộ sinh), hoặc nếu seed dev trùng seed test.
+  - CSV ở `data/noisy/vihsd_dev/` (không commit); manifest `reports/noisy_dev/manifest.json` (có commit), cùng cấu trúc manifest test; `python -m src.noisy_dev --check` sinh lại và so hash.
+  - `evaluate.py` thêm cờ `--noisy-dev`, giữ nguyên `--noisy-test`. Ghi `noisy_dev_metrics.json` và `noisy_dev_predictions.csv`; cách tính (tham chiếu, mức tụt, seen theo câu gốc) giống D-026. Cổng "đúng mô hình" so điểm dev gốc đoán lại với `dev_metrics.json`. **Biết trước:** ViSoBERT s42 sẽ lệch (mô hình tái tạo khác 1 câu dev, D-026), s43, s44 và baseline phải khớp.
+  - **Chạy cấu hình A trên dev nhiễu** (baseline trên máy, ViSoBERT 3 seed trên Kaggle) làm mốc cho B/C/D. Đặt cạnh mức tụt trên test nhiễu chỉ để xem dev nhiễu có đại diện được không; nếu lệch thì ghi lại, không sửa bộ cho khớp.
+- **Lý do:** cùng bộ sinh và cùng danh sách bộ thì một lựa chọn tốt trên dev nhiễu có ý nghĩa với test nhiễu; seed ghi trước thì không thể chọn seed "đẹp". Module riêng giữ nguyên hash `noise.py` nên `--check` của bộ test vẫn khớp.
+- **Đánh đổi:** khoảng 40 dòng code ghi file và manifest lặp lại giữa `noise.py` và `noisy_dev.py`. Dùng dev nhiều lần để chọn có thể quá khớp dev: ghi lại mọi lần thử và lựa chọn ở đây; test chỉ chạy một lần cuối.
+- **Phương án bỏ:** thêm tham số `split` vào `_make_test_sets` (đổi hash `noise.py`, phá cam kết đóng băng); dùng chung seed 1105 cho dev; đổi `--noisy-test` thành `--noisy {dev,test}` (phải sửa mọi lệnh đã ghi trong tài liệu).
+- **Kết quả** (`reports/noisy_dev/config_a.md`):
+  - Bộ dev nhiễu tạo xong, `--check` khớp; hash `noise.py` không đổi nên `--check` của bộ test vẫn khớp.
+  - Mức tụt ở `all_medium`: baseline 0.039 (0.6330 → 0.5939); ViSoBERT **0.123 ± 0.017** (0.7225 ± 0.0059 → 0.5999 ± 0.0122). Chèn ký tự gây hại nặng nhất: ViSoBERT tụt 0.221 ± 0.023.
+  - Cổng "đúng mô hình": baseline và ViSoBERT s44 khớp; s42 lệch 1 câu dev, đúng như dự đoán. **s43 lệch 1 câu dev, ngoài dự đoán** (0.7268 → 0.7281, một câu OFFENSIVE nay được đoán đúng). Lần chạy này dùng torch `2.11.0+cu130`, lúc train dùng `+cu128`. Đây là nguyên nhân khả dĩ, chưa kiểm chứng. Không chạy lại để tìm lần chạy khớp (D-026). Bài học: muốn khớp từng câu thì phải cố định cả bản build CUDA, không chỉ số phiên bản torch.
+  - Tính đại diện: xu hướng giống test nhiễu (cùng thứ tự gây hại; ViSoBERT tụt khoảng 3 lần baseline). Ở mọi bộ được so, ViSoBERT tụt trên dev nhiều hơn trên test từ 0.004 đến 0.025. Ghi lại, không sửa bộ.

@@ -171,6 +171,12 @@ python -m src.noise --make-test-sets
 python -m src.noise --make-test-sets --check   # tái lập: so hash với reports/noisy_test/manifest.json
 # Mức tụt trên bộ test nhiễu (D-026, mô hình đóng băng; không ghi đè test_metrics.json)
 python -m src.evaluate --config configs/tfidf_lr_wordchar_balanced.yaml --noisy-test
+# Bộ dev nhiễu từ ViHSD DEV (D-027, seed 2611): dùng để chọn cho B/C/D thay cho bộ test nhiễu
+python -m src.noisy_dev
+python -m src.noisy_dev --check   # tái lập: so hash với reports/noisy_dev/manifest.json
+# Mức tụt trên bộ dev nhiễu (D-027): mốc để chọn cho B/C/D; cổng "đúng mô hình" so với dev_metrics.json
+python -m src.evaluate --config configs/tfidf_lr_wordchar_balanced.yaml --noisy-dev
+python -m src.evaluate --config configs/visobert_balanced.yaml --noisy-dev --summarize-seeds 42 43 44
 # ViSoBERT: trên Kaggle theo docs/kaggle.md mục 5 (--seed 42/43/44, rồi --summarize-seeds 42 43 44)
 
 # Chạy demo
@@ -234,6 +240,7 @@ python app/app.py
 - [x] Đo mức tụt điểm của cấu hình A (D-026, `reports/noisy_test/config_a.md`: ViSoBERT tụt 0.101 ở `all_medium`, baseline 0.037)
 
 **Tuần 5: Cấu hình C và D**
+- [x] Bộ dev nhiễu làm mốc chọn cho B/C/D (seed 2611, D-027; cấu hình A trên dev nhiễu: ViSoBERT tụt 0.123 ở `all_medium`, `reports/noisy_dev/config_a.md`)
 - [ ] Seq2seq chuẩn hóa (ViT5/BARTpho) trên cặp nhiễu-chuẩn sinh tự động
 - [ ] Huấn luyện đối kháng (cấu hình D)
 

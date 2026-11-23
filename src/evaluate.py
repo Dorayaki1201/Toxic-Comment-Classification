@@ -2,8 +2,9 @@
 
 Chạy trên test chỉ một lần, sau khi đã chốt cấu hình bằng dev:
     python -m src.evaluate --config configs/<tên>.yaml --split test
-Bộ test nhiễu (D-025, D-026), mô hình đã đóng băng:
+Bộ test nhiễu (D-025, D-026) và bộ dev nhiễu (D-027), mô hình đã đóng băng:
     python -m src.evaluate --config configs/<tên>.yaml --noisy-test [--seed S]
+    python -m src.evaluate --config configs/<tên>.yaml --noisy-dev [--seed S]
 """
 
 import argparse
@@ -30,6 +31,8 @@ from src.utils import get_logger, load_config, set_seed, with_seed
 logger = get_logger(__name__)
 
 LABEL_IDS = sorted(LABEL_NAMES)
+# Bộ nhiễu theo tập gốc: mục trong configs/noise.yaml và quyết định tương ứng.
+NOISY_SPLITS = {"test": ("test_sets", "D-026"), "dev": ("dev_sets", "D-027")}
 
 
 def compute_metrics(y_true: list[int], y_pred: list[int]) -> dict[str, Any]:
@@ -179,10 +182,10 @@ def summarize_seeds(
     return summary
 
 
-# --- Bộ test nhiễu (D-025, D-026) ---
+# --- Bộ test nhiễu (D-025, D-026) và bộ dev nhiễu (D-027) ---
 
 NOISY_COLUMNS = ("row_id", TEXT_COL, LABEL_COL, "changed")
-ORIGINAL_SET = "original"  # test gốc, đoán lại trong cùng lần chạy để đối chiếu
+ORIGINAL_SET = "original"  # tập gốc (test/dev), đoán lại trong cùng lần chạy để đối chiếu
 
 
 def load_noisy_set(path: str | Path) -> pd.DataFrame:
@@ -206,19 +209,19 @@ def sha256_file(path: str | Path) -> str:
 def check_noisy_set(
     noisy: pd.DataFrame, labels: np.ndarray, path: str | Path, expected_sha256: str
 ) -> None:
-    """Dừng (ValueError) nếu bộ nhiễu không khớp manifest hoặc không gióng hàng với test gốc.
+    """Dừng (ValueError) nếu bộ nhiễu không khớp manifest hoặc không gióng hàng với tập gốc.
 
     Kiểm tra: hash file đúng như manifest đã commit, đủ số dòng, row_id = 0..n-1 theo thứ tự,
-    nhãn trùng nhãn test gốc từng dòng.
+    nhãn trùng nhãn tập gốc (test hoặc dev) từng dòng.
     """
     if sha256_file(path) != expected_sha256:
-        raise ValueError(f"{path}: sha256 khác manifest (D-025), không dùng bộ này")
+        raise ValueError(f"{path}: sha256 khác manifest đã commit, không dùng bộ này")
     if len(noisy) != len(labels):
-        raise ValueError(f"{path}: {len(noisy)} dòng, test gốc có {len(labels)}")
+        raise ValueError(f"{path}: {len(noisy)} dòng, tập gốc có {len(labels)}")
     if not np.array_equal(noisy["row_id"].to_numpy(), np.arange(len(labels))):
         raise ValueError(f"{path}: row_id không phải 0..n-1 theo thứ tự")
     if not np.array_equal(noisy[LABEL_COL].to_numpy(), labels):
-        raise ValueError(f"{path}: nhãn khác test gốc")
+        raise ValueError(f"{path}: nhãn khác tập gốc")
 
 
 def prediction_flip_rate(pred_reference: np.ndarray, pred_noisy: np.ndarray) -> float:
@@ -228,7 +231,7 @@ def prediction_flip_rate(pred_reference: np.ndarray, pred_noisy: np.ndarray) -> 
 
 def reference_set_name(config: dict[str, Any], set_names: list[str]) -> str:
     """Bộ để tính mức tụt: transformer so với `nfc_only` (nó không tự NFC, D-025), baseline
-    so với test gốc (baseline tự NFC trong models.py)."""
+    so với tập gốc (baseline tự NFC trong models.py)."""
     if model_type(config) == "transformer" and "nfc_only" in set_names:
         return "nfc_only"
     return ORIGINAL_SET
@@ -265,14 +268,23 @@ def noisy_set_metrics(
     return metrics
 
 
-def _committed_test_check(
-    report_dir: Path, macro_f1: float, tolerance: float = 1e-9
-) -> dict[str, Any]:
-    """So điểm test gốc vừa đoán lại với test_metrics.json đã có: khớp = đúng mô hình đã báo cáo."""
-    path = report_dir / "test_metrics.json"
+def committed_macro_f1(report_dir: Path, split: str) -> float | None:
+    """macro-F1 đã ghi trước đó cho tập gốc: test_metrics.json ("macro_f1"), hoặc
+    dev_metrics.json do train.py ghi ("dev" -> "macro_f1"). None nếu chưa có file."""
+    path = report_dir / f"{split}_metrics.json"
     if not path.exists():
+        return None
+    report = json.loads(path.read_text(encoding="utf-8"))
+    return report["dev"]["macro_f1"] if split == "dev" else report["macro_f1"]
+
+
+def _committed_check(
+    report_dir: Path, split: str, macro_f1: float, tolerance: float = 1e-9
+) -> dict[str, Any]:
+    """So điểm tập gốc vừa đoán lại với file chỉ số đã có: khớp = đúng mô hình đã báo cáo."""
+    committed = committed_macro_f1(report_dir, split)
+    if committed is None:
         return {"committed_macro_f1": None, "matches": None}
-    committed = json.loads(path.read_text(encoding="utf-8"))["macro_f1"]
     return {"committed_macro_f1": committed, "matches": abs(committed - macro_f1) <= tolerance}
 
 
@@ -282,29 +294,32 @@ def evaluate_noisy(
     models_dir: str | Path = "models",
     reports_dir: str | Path = "reports",
     noise_config_path: str | Path = "configs/noise.yaml",
+    split: str = "test",
 ) -> dict[str, Any]:
-    """Đánh giá một mô hình đã đóng băng trên test gốc + mọi bộ nhiễu trong manifest (D-026).
+    """Đánh giá một mô hình đã đóng băng trên tập gốc + mọi bộ nhiễu trong manifest.
 
-    Ghi reports/<tên>/noisy_test_metrics.json và noisy_test_predictions.csv (row_id + nhãn
-    đoán từng bộ, không có văn bản). Không ghi đè test_metrics.json.
+    split="test": bộ test nhiễu (D-026); split="dev": bộ dev nhiễu (D-027), dùng để chọn cho
+    B/C/D. Ghi reports/<tên>/noisy_<split>_metrics.json và noisy_<split>_predictions.csv
+    (row_id + nhãn đoán từng bộ, không có văn bản). Không ghi đè <split>_metrics.json.
     """
+    config_key, decision = NOISY_SPLITS[split]
     config = load_config(config_path)
     if seed is not None:
         config = with_seed(config, seed)
     set_seed(config["seed"])
     name = config["name"]
-    settings = load_config(noise_config_path)["test_sets"]
+    settings = load_config(noise_config_path)[config_key]
     manifest = json.loads(Path(settings["manifest"]).read_text(encoding="utf-8"))
     noisy_dir = Path(settings["out_dir"])
 
     model = load_model(config, models_dir)
-    test = load_vihsd("test", config["data_dir"])
+    base = load_vihsd(split, config["data_dir"])
     train_texts = load_vihsd("train", config["data_dir"])[TEXT_COL]
-    y_true = test[LABEL_COL].to_numpy()
+    y_true = base[LABEL_COL].to_numpy()
     # seen/unseen theo CÂU GỐC: câu nhiễu gần như không bao giờ trùng train (D-025).
-    seen_original = find_seen(test[TEXT_COL], train_texts).to_numpy()
+    seen_original = find_seen(base[TEXT_COL], train_texts).to_numpy()
 
-    predictions = {ORIGINAL_SET: np.asarray(model.predict(test[TEXT_COL]))}
+    predictions = {ORIGINAL_SET: np.asarray(model.predict(base[TEXT_COL]))}
     seen = {ORIGINAL_SET: seen_original}
     changed: dict[str, np.ndarray | None] = {ORIGINAL_SET: None}
     for set_name, info in manifest["sets"].items():
@@ -317,9 +332,9 @@ def evaluate_noisy(
         changed[set_name] = noisy["changed"].to_numpy()
 
     if model_type(config) != "transformer" and "nfc_only" in predictions:
-        # Baseline tự NFC, nên nfc_only phải cho đúng các dự đoán của test gốc.
+        # Baseline tự NFC, nên nfc_only phải cho đúng các dự đoán của tập gốc.
         if not np.array_equal(predictions["nfc_only"], predictions[ORIGINAL_SET]):
-            raise ValueError("Baseline đoán khác nhau trên nfc_only và test gốc: bộ bị lệch hàng?")
+            raise ValueError("Baseline đoán khác nhau trên nfc_only và tập gốc: bộ bị lệch hàng?")
 
     reference = reference_set_name(config, list(predictions))
     sets = {
@@ -328,27 +343,28 @@ def evaluate_noisy(
         )
         for set_name, pred in predictions.items()
     }
-    check = _committed_test_check(Path(reports_dir) / name, sets[ORIGINAL_SET]["macro_f1"])
+    check = _committed_check(Path(reports_dir) / name, split, sets[ORIGINAL_SET]["macro_f1"])
     report = {
         "config": name,
-        "decision": "D-026",
-        "rows": len(test),
+        "decision": decision,
+        "rows": len(base),
         "reference_set": reference,
         "noise_seed": manifest["seed"],
         "noise_inputs": manifest["inputs"],
-        "original_matches_committed_test": check,
+        f"original_matches_committed_{split}": check,
         "sets": sets,
     }
     out_dir = Path(reports_dir) / name
-    save_metrics(report, out_dir / "noisy_test_metrics.json")
-    pd.DataFrame({"row_id": np.arange(len(test)), **predictions}).to_csv(
-        out_dir / "noisy_test_predictions.csv", index=False, lineterminator="\n"
+    save_metrics(report, out_dir / f"noisy_{split}_metrics.json")
+    pd.DataFrame({"row_id": np.arange(len(base)), **predictions}).to_csv(
+        out_dir / f"noisy_{split}_predictions.csv", index=False, lineterminator="\n"
     )
 
     if check["matches"] is False:
         logger.warning(
-            f"{name}: test gốc ra {sets[ORIGINAL_SET]['macro_f1']:.6f}, khác "
-            f"test_metrics.json ({check['committed_macro_f1']:.6f}): KHÔNG phải mô hình đã báo cáo"
+            f"{name}: {split} gốc ra {sets[ORIGINAL_SET]['macro_f1']:.6f}, khác "
+            f"{split}_metrics.json ({check['committed_macro_f1']:.6f}): "
+            "KHÔNG phải mô hình đã báo cáo"
         )
     logger.info(f"{name} | tham chiếu: {reference}")
     for set_name, m in sets.items():
@@ -360,16 +376,15 @@ def evaluate_noisy(
 
 
 def summarize_noisy_seeds(
-    name: str, seeds: list[int], reports_dir: str | Path = "reports"
+    name: str, seeds: list[int], reports_dir: str | Path = "reports", split: str = "test"
 ) -> dict[str, Any]:
-    """Gộp noisy_test_metrics.json của các seed: trung bình ± độ lệch chuẩn từng bộ.
+    """Gộp noisy_<split>_metrics.json của các seed: trung bình ± độ lệch chuẩn từng bộ.
 
     Mức tụt được tính trong từng seed trước rồi mới gộp (so cặp trong cùng một mô hình).
     """
+    file_name = f"noisy_{split}_metrics.json"
     runs = [
-        json.loads(
-            (Path(reports_dir) / f"{name}_s{seed}" / "noisy_test_metrics.json").read_text("utf-8")
-        )
+        json.loads((Path(reports_dir) / f"{name}_s{seed}" / file_name).read_text("utf-8"))
         for seed in seeds
     ]
     references = {run["reference_set"] for run in runs}
@@ -399,12 +414,12 @@ def summarize_noisy_seeds(
         "config": name,
         "seeds": list(seeds),
         "reference_set": references.pop(),
-        "original_matches_committed_test": [
-            run["original_matches_committed_test"]["matches"] for run in runs
+        f"original_matches_committed_{split}": [
+            run[f"original_matches_committed_{split}"]["matches"] for run in runs
         ],
         "sets": sets,
     }
-    save_metrics(summary, Path(reports_dir) / name / "noisy_test_summary.json")
+    save_metrics(summary, Path(reports_dir) / name / f"noisy_{split}_summary.json")
     for set_name, s in sets.items():
         m, d = s["macro_f1"], s["drop_macro_f1"]
         logger.info(
@@ -423,6 +438,11 @@ def main() -> None:
         action="store_true",
         help="đánh giá trên test gốc + bộ test nhiễu (D-026); không ghi đè test_metrics.json",
     )
+    parser.add_argument(
+        "--noisy-dev",
+        action="store_true",
+        help="đánh giá trên dev gốc + bộ dev nhiễu (D-027), dùng để chọn cho B/C/D",
+    )
     parser.add_argument("--seed", type=int, help="đánh giá mô hình <tên>_s<seed>")
     parser.add_argument(
         "--summarize-seeds",
@@ -432,16 +452,20 @@ def main() -> None:
         help="chỉ gộp các báo cáo <tên>_s<seed> đã có thành trung bình ± độ lệch chuẩn",
     )
     args = parser.parse_args()
-    if args.noisy_test == bool(args.split):
-        parser.error("chọn đúng một trong --split hoặc --noisy-test")
-    if args.noisy_test:
+    if args.noisy_test + args.noisy_dev + bool(args.split) != 1:
+        parser.error("chọn đúng một trong --split, --noisy-test hoặc --noisy-dev")
+    noisy_split = "test" if args.noisy_test else "dev" if args.noisy_dev else None
+    if noisy_split:
         if args.summarize_seeds:
-            summarize_noisy_seeds(load_config(args.config)["name"], args.summarize_seeds)
+            name = load_config(args.config)["name"]
+            summarize_noisy_seeds(name, args.summarize_seeds, split=noisy_split)
             return
-        logger.warning(
-            "Bộ test nhiễu suy ra từ TEST: mô hình đóng băng, không chỉnh gì theo kết quả (D-026)."
-        )
-        evaluate_noisy(args.config, seed=args.seed)
+        if noisy_split == "test":
+            logger.warning(
+                "Bộ test nhiễu suy ra từ TEST: mô hình đóng băng, không chỉnh gì theo kết quả "
+                "(D-026)."
+            )
+        evaluate_noisy(args.config, seed=args.seed, split=noisy_split)
         return
     if args.summarize_seeds:
         name = load_config(args.config)["name"]
