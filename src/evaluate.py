@@ -5,12 +5,16 @@ Chạy trên test chỉ một lần, sau khi đã chốt cấu hình bằng dev:
 Bộ test nhiễu (D-025, D-026) và bộ dev nhiễu (D-027), mô hình đã đóng băng:
     python -m src.evaluate --config configs/<tên>.yaml --noisy-test [--seed S]
     python -m src.evaluate --config configs/<tên>.yaml --noisy-dev [--seed S]
+Cấu hình B (D-028), chuẩn hóa trước mô hình A, chỉ trên dev nhiễu:
+    python -m src.evaluate --config configs/<tên>.yaml --noisy-dev --normalize {rules,full}
 """
 
 import argparse
 import hashlib
 import json
 import unicodedata
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +30,7 @@ from sklearn.metrics import (
 
 from src.data import LABEL_COL, LABEL_NAMES, TEXT_COL, load_vihsd
 from src.models import load_model, model_type
+from src.normalize import collapse_whitespace, load_lexicon, normalize
 from src.utils import get_logger, load_config, set_seed, with_seed
 
 logger = get_logger(__name__)
@@ -288,6 +293,46 @@ def _committed_check(
     return {"committed_macro_f1": committed, "matches": abs(committed - macro_f1) <= tolerance}
 
 
+@dataclass
+class NoisyInputs:
+    """Tập gốc + mọi bộ nhiễu đã kiểm tra, gióng theo row_id; khóa là tên bộ ("original" trước)."""
+
+    manifest: dict[str, Any]
+    y_true: np.ndarray
+    texts: dict[str, pd.Series]
+    seen: dict[str, np.ndarray]
+    changed: dict[str, np.ndarray | None]
+
+
+def load_noisy_inputs(
+    config: dict[str, Any], split: str, noise_config_path: str | Path
+) -> NoisyInputs:
+    """Nạp tập gốc (dev/test) và các bộ nhiễu trong manifest; dừng nếu bộ nào sai hash/lệch hàng.
+
+    seen/unseen tính theo CÂU GỐC (qua row_id): câu nhiễu gần như không bao giờ trùng train.
+    """
+    settings = load_config(noise_config_path)[NOISY_SPLITS[split][0]]
+    manifest = json.loads(Path(settings["manifest"]).read_text(encoding="utf-8"))
+    noisy_dir = Path(settings["out_dir"])
+
+    base = load_vihsd(split, config["data_dir"])
+    train_texts = load_vihsd("train", config["data_dir"])[TEXT_COL]
+    y_true = base[LABEL_COL].to_numpy()
+    seen_original = find_seen(base[TEXT_COL], train_texts).to_numpy()
+
+    texts = {ORIGINAL_SET: base[TEXT_COL].reset_index(drop=True)}
+    seen = {ORIGINAL_SET: seen_original}
+    changed: dict[str, np.ndarray | None] = {ORIGINAL_SET: None}
+    for set_name, info in manifest["sets"].items():
+        path = noisy_dir / f"{set_name}.csv"
+        noisy = load_noisy_set(path)
+        check_noisy_set(noisy, y_true, path, info["sha256"])
+        texts[set_name] = noisy[TEXT_COL]
+        seen[set_name] = seen_original[noisy["row_id"].to_numpy()]
+        changed[set_name] = noisy["changed"].to_numpy()
+    return NoisyInputs(manifest, y_true, texts, seen, changed)
+
+
 def evaluate_noisy(
     config_path: str | Path,
     seed: int | None = None,
@@ -302,34 +347,19 @@ def evaluate_noisy(
     B/C/D. Ghi reports/<tên>/noisy_<split>_metrics.json và noisy_<split>_predictions.csv
     (row_id + nhãn đoán từng bộ, không có văn bản). Không ghi đè <split>_metrics.json.
     """
-    config_key, decision = NOISY_SPLITS[split]
+    decision = NOISY_SPLITS[split][1]
     config = load_config(config_path)
     if seed is not None:
         config = with_seed(config, seed)
     set_seed(config["seed"])
     name = config["name"]
-    settings = load_config(noise_config_path)[config_key]
-    manifest = json.loads(Path(settings["manifest"]).read_text(encoding="utf-8"))
-    noisy_dir = Path(settings["out_dir"])
 
     model = load_model(config, models_dir)
-    base = load_vihsd(split, config["data_dir"])
-    train_texts = load_vihsd("train", config["data_dir"])[TEXT_COL]
-    y_true = base[LABEL_COL].to_numpy()
-    # seen/unseen theo CÂU GỐC: câu nhiễu gần như không bao giờ trùng train (D-025).
-    seen_original = find_seen(base[TEXT_COL], train_texts).to_numpy()
-
-    predictions = {ORIGINAL_SET: np.asarray(model.predict(base[TEXT_COL]))}
-    seen = {ORIGINAL_SET: seen_original}
-    changed: dict[str, np.ndarray | None] = {ORIGINAL_SET: None}
-    for set_name, info in manifest["sets"].items():
-        path = noisy_dir / f"{set_name}.csv"
-        noisy = load_noisy_set(path)
-        check_noisy_set(noisy, y_true, path, info["sha256"])
-        row_ids = noisy["row_id"].to_numpy()
-        predictions[set_name] = np.asarray(model.predict(noisy[TEXT_COL]))
-        seen[set_name] = seen_original[row_ids]
-        changed[set_name] = noisy["changed"].to_numpy()
+    inputs = load_noisy_inputs(config, split, noise_config_path)
+    manifest, y_true, seen, changed = inputs.manifest, inputs.y_true, inputs.seen, inputs.changed
+    predictions = {
+        set_name: np.asarray(model.predict(texts)) for set_name, texts in inputs.texts.items()
+    }
 
     if model_type(config) != "transformer" and "nfc_only" in predictions:
         # Baseline tự NFC, nên nfc_only phải cho đúng các dự đoán của tập gốc.
@@ -347,7 +377,7 @@ def evaluate_noisy(
     report = {
         "config": name,
         "decision": decision,
-        "rows": len(base),
+        "rows": len(y_true),
         "reference_set": reference,
         "noise_seed": manifest["seed"],
         "noise_inputs": manifest["inputs"],
@@ -356,7 +386,7 @@ def evaluate_noisy(
     }
     out_dir = Path(reports_dir) / name
     save_metrics(report, out_dir / f"noisy_{split}_metrics.json")
-    pd.DataFrame({"row_id": np.arange(len(base)), **predictions}).to_csv(
+    pd.DataFrame({"row_id": np.arange(len(y_true)), **predictions}).to_csv(
         out_dir / f"noisy_{split}_predictions.csv", index=False, lineterminator="\n"
     )
 
@@ -429,6 +459,270 @@ def summarize_noisy_seeds(
     return summary
 
 
+# --- Cấu hình B: normalize trước mô hình A đóng băng (D-028) ---
+
+NORMALIZE_VARIANTS = ("rules", "full")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# sha256 (CRLF đổi thành LF) ghi ở D-028 trước khi chạy: B phải đo đúng bản chuẩn hóa này.
+FROZEN_FOR_CONFIG_B = {
+    "src/normalize.py": "94c7b0696f3de232ddfec0d46ac084a142a31631805b781f719348b6c3533a73",
+    "resources/teencode.tsv": "31026f967755ff662d1168d00f27a175b2c2a11ec853926b0b53e6e070800907",
+}
+
+
+def sha256_lf(path: str | Path) -> str:
+    """sha256 sau khi đổi CRLF thành LF: cùng một file cho cùng hash trên Windows và Kaggle."""
+    return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def check_frozen_files(expected: dict[str, str], root: str | Path = PROJECT_ROOT) -> dict[str, str]:
+    """Dừng (ValueError) nếu một file đã đóng băng có hash khác giá trị đã ghi; trả các hash."""
+    actual = {rel: sha256_lf(Path(root) / rel) for rel in expected}
+    modified = [rel for rel, digest in expected.items() if actual[rel] != digest]
+    if modified:
+        raise ValueError(f"File đã đóng băng cho cấu hình B bị sửa (D-028): {modified}")
+    return actual
+
+
+def make_normalizer(variant: str) -> Callable[[str], str]:
+    """`rules`: chỉ lớp luật 3a; `full`: lớp luật + từ điển teencode 3b (D-028)."""
+    if variant == "rules":
+        return normalize
+    if variant == "full":
+        lexicon = load_lexicon()
+        return lambda text: normalize(text, lexicon)
+    raise ValueError(f"Biến thể chuẩn hóa không hợp lệ: {variant!r}, chọn {NORMALIZE_VARIANTS}")
+
+
+def normalize_stats(
+    raw: pd.Series,
+    normalized: pd.Series,
+    normalized_original: pd.Series,
+    changed: np.ndarray | None,
+) -> dict[str, Any]:
+    """Chuẩn hóa tác động ra sao lên một bộ, không cần mô hình.
+
+    - `normalize_changed_rate`: % câu bị luật/từ điển đổi (không tính NFC và khoảng trắng).
+    - `recovered_rate`: % câu mà normalize(câu bộ này) == normalize(câu gốc): khôi phục hoàn toàn.
+    - `recovered_rate_changed_rows`: như trên nhưng chỉ trên câu bị nhiễu đổi.
+    """
+    plain = raw.map(lambda text: collapse_whitespace(unicodedata.normalize("NFC", text)))
+    recovered = normalized.to_numpy() == normalized_original.to_numpy()
+    stats = {
+        "normalize_changed_rate": float(np.mean(normalized.to_numpy() != plain.to_numpy())),
+        "recovered_rate": float(recovered.mean()),
+    }
+    if changed is not None and changed.any():
+        stats["recovered_rate_changed_rows"] = float(recovered[changed].mean())
+    return stats
+
+
+def paired_gain(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """Lợi ích B − A trên cùng một bộ, cùng mô hình, cùng lần chạy (dương = B tốt hơn)."""
+    paired = {"gain_macro_f1": b["macro_f1"] - a["macro_f1"]}
+    if "changed_rows" in a:
+        paired["gain_changed_rows_macro_f1"] = (
+            b["changed_rows"]["macro_f1"] - a["changed_rows"]["macro_f1"]
+        )
+    return paired
+
+
+def compare_with_committed_predictions(
+    path: str | Path, predictions: dict[str, np.ndarray]
+) -> dict[str, Any]:
+    """Cổng "đúng mô hình" cho A: đếm số câu A lần này đoán khác file dự đoán A đã commit."""
+    path = Path(path)
+    if not path.exists():
+        return {"available": False}
+    committed = pd.read_csv(path)
+    differing = {
+        set_name: int(np.sum(committed[set_name].to_numpy() != pred))
+        for set_name, pred in predictions.items()
+        if set_name in committed.columns
+    }
+    missing = [set_name for set_name in predictions if set_name not in committed.columns]
+    return {
+        "available": True,
+        "rows_differing": differing,
+        "total_differing": sum(differing.values()),
+        "missing_sets": missing,
+    }
+
+
+def config_b_file(split: str, variant: str, kind: str) -> str:
+    """Tên file của B, tách hẳn file của A: noisy_dev_b_rules_metrics.json, ..."""
+    return f"noisy_{split}_b_{variant}_{kind}"
+
+
+def evaluate_config_b(
+    config_path: str | Path,
+    variant: str,
+    seed: int | None = None,
+    models_dir: str | Path = "models",
+    reports_dir: str | Path = "reports",
+    noise_config_path: str | Path = "configs/noise.yaml",
+    split: str = "dev",
+) -> dict[str, Any]:
+    """Cấu hình B (D-028): mỗi bộ đoán hai lần trong cùng lần chạy, thô (A) và đã chuẩn hóa (B).
+
+    Tham chiếu của A như D-026/D-027; tham chiếu của B là tập gốc đã chuẩn hóa (normalize có NFC
+    nên `original` và `nfc_only` thành cùng một đầu vào). Ghi reports/<tên>/noisy_dev_b_<biến
+    thể>_metrics.json và _predictions.csv; không đụng file nào của A.
+    """
+    if split != "dev":
+        raise ValueError("D-028: cấu hình B chỉ chạy trên dev nhiễu cho tới khi chốt biến thể")
+    frozen = check_frozen_files(FROZEN_FOR_CONFIG_B)
+    normalizer = make_normalizer(variant)
+    config = load_config(config_path)
+    if seed is not None:
+        config = with_seed(config, seed)
+    set_seed(config["seed"])
+    name = config["name"]
+
+    model = load_model(config, models_dir)
+    inputs = load_noisy_inputs(config, split, noise_config_path)
+    normalized = {set_name: texts.map(normalizer) for set_name, texts in inputs.texts.items()}
+    if "nfc_only" in normalized and not np.array_equal(
+        normalized["nfc_only"].to_numpy(), normalized[ORIGINAL_SET].to_numpy()
+    ):
+        raise ValueError("Sau chuẩn hóa, nfc_only khác tập gốc: bộ bị lệch hàng?")
+
+    pred_a = {s: np.asarray(model.predict(texts)) for s, texts in inputs.texts.items()}
+    pred_b = {s: np.asarray(model.predict(texts)) for s, texts in normalized.items()}
+    reference_a = reference_set_name(config, list(pred_a))
+
+    sets = {}
+    for set_name in inputs.texts:
+        args = (inputs.seen[set_name], inputs.changed[set_name])
+        a = noisy_set_metrics(inputs.y_true, pred_a[set_name], pred_a[reference_a], *args)
+        b = noisy_set_metrics(inputs.y_true, pred_b[set_name], pred_b[ORIGINAL_SET], *args)
+        stats = normalize_stats(
+            inputs.texts[set_name],
+            normalized[set_name],
+            normalized[ORIGINAL_SET],
+            inputs.changed[set_name],
+        )
+        sets[set_name] = {"a": a, "b": b, "paired": paired_gain(a, b), "normalize": stats}
+
+    out_dir = Path(reports_dir) / name
+    report = {
+        "config": name,
+        "decision": "D-028",
+        "variant": variant,
+        "rows": len(inputs.y_true),
+        "reference_set_a": reference_a,
+        "reference_set_b": ORIGINAL_SET,
+        "noise_seed": inputs.manifest["seed"],
+        "noise_inputs": inputs.manifest["inputs"],
+        "frozen_inputs": frozen,
+        # Dương = chuẩn hóa làm hại câu sạch.
+        "clean_cost_macro_f1": sets[reference_a]["a"]["macro_f1"]
+        - sets[ORIGINAL_SET]["b"]["macro_f1"],
+        "a_matches_committed_predictions": compare_with_committed_predictions(
+            out_dir / f"noisy_{split}_predictions.csv", pred_a
+        ),
+        "sets": sets,
+    }
+    save_metrics(report, out_dir / config_b_file(split, variant, "metrics.json"))
+    columns = {f"a_{s}": p for s, p in pred_a.items()} | {f"b_{s}": p for s, p in pred_b.items()}
+    pd.DataFrame({"row_id": np.arange(len(inputs.y_true)), **columns}).to_csv(
+        out_dir / config_b_file(split, variant, "predictions.csv"),
+        index=False,
+        lineterminator="\n",
+    )
+
+    gate = report["a_matches_committed_predictions"]
+    if gate.get("total_differing"):
+        logger.warning(f"{name}: A lần này đoán khác file đã commit {gate['rows_differing']}")
+    logger.info(
+        f"{name} | B-{variant} | tham chiếu A: {reference_a} | "
+        f"chi phí dev sạch {report['clean_cost_macro_f1']:+.4f}"
+    )
+    for set_name, s in sets.items():
+        logger.info(
+            f"{name} | {set_name:26s} A {s['a']['macro_f1']:.4f} | B {s['b']['macro_f1']:.4f}"
+            f" | B−A {s['paired']['gain_macro_f1']:+.4f}"
+            f" | khôi phục {s['normalize']['recovered_rate']:.1%}"
+        )
+    return report
+
+
+def summarize_config_b_seeds(
+    name: str,
+    seeds: list[int],
+    variant: str,
+    reports_dir: str | Path = "reports",
+    split: str = "dev",
+) -> dict[str, Any]:
+    """Gộp báo cáo B của các seed: trung bình ± độ lệch chuẩn của lợi ích ghép cặp B − A.
+
+    Lợi ích đã tính trong từng seed. `recovered_share` = lợi ích trung bình / mức tụt trung bình
+    của A (tỉ số của hai trung bình, ổn định hơn trung bình của các tỉ số khi mức tụt nhỏ).
+    """
+    file_name = config_b_file(split, variant, "metrics.json")
+    runs = [
+        json.loads((Path(reports_dir) / f"{name}_s{seed}" / file_name).read_text("utf-8"))
+        for seed in seeds
+    ]
+    for key in ("variant", "reference_set_a", "frozen_inputs"):
+        values = {json.dumps(run[key], sort_keys=True) for run in runs}
+        if len(values) != 1:
+            raise ValueError(f"Các seed khác nhau ở {key!r}: {values}")
+
+    def stat(set_name: str, getter) -> dict[str, Any]:
+        return _mean_std([getter(run["sets"][set_name]) for run in runs])
+
+    sets = {}
+    for set_name, first in runs[0]["sets"].items():
+        gains = [run["sets"][set_name]["paired"]["gain_macro_f1"] for run in runs]
+        a_drop = stat(set_name, lambda s: s["a"]["drop_macro_f1"])
+        gain = _mean_std(gains)
+        entry = {
+            "a_macro_f1": stat(set_name, lambda s: s["a"]["macro_f1"]),
+            "b_macro_f1": stat(set_name, lambda s: s["b"]["macro_f1"]),
+            "gain_macro_f1": gain,
+            "positive_gain_seeds": sum(g > 0 for g in gains),
+            "a_drop_macro_f1": a_drop,
+            "b_drop_macro_f1": stat(set_name, lambda s: s["b"]["drop_macro_f1"]),
+            "recovered_share": gain["mean"] / a_drop["mean"] if a_drop["mean"] > 0 else None,
+            "b_per_class_f1": {
+                label: stat(set_name, lambda s, label=label: s["b"]["per_class"][label]["f1"])
+                for label in LABEL_NAMES.values()
+            },
+            # Chuẩn hóa là tất định: giống nhau ở mọi seed, lấy từ seed đầu.
+            "normalize": first["normalize"],
+        }
+        if "gain_changed_rows_macro_f1" in first["paired"]:
+            entry["gain_changed_rows_macro_f1"] = stat(
+                set_name, lambda s: s["paired"]["gain_changed_rows_macro_f1"]
+            )
+        sets[set_name] = entry
+    summary = {
+        "config": name,
+        "decision": "D-028",
+        "variant": variant,
+        "seeds": list(seeds),
+        "reference_set_a": runs[0]["reference_set_a"],
+        "frozen_inputs": runs[0]["frozen_inputs"],
+        "clean_cost_macro_f1": _mean_std([run["clean_cost_macro_f1"] for run in runs]),
+        "a_total_differing_from_committed": [
+            run["a_matches_committed_predictions"].get("total_differing") for run in runs
+        ],
+        "sets": sets,
+    }
+    save_metrics(summary, Path(reports_dir) / name / config_b_file(split, variant, "summary.json"))
+    cost = summary["clean_cost_macro_f1"]
+    logger.info(f"{name} | B-{variant} | chi phí dev sạch {cost['mean']:+.4f} ± {cost['std']:.4f}")
+    for set_name, s in sets.items():
+        g = s["gain_macro_f1"]
+        positive = f"{s['positive_gain_seeds']}/{len(seeds)} seed dương"
+        logger.info(
+            f"{name} | {set_name:26s} B {s['b_macro_f1']['mean']:.4f}"
+            f" | B−A {g['mean']:+.4f} ± {g['std']:.4f} ({positive})"
+        )
+    return summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Đánh giá mô hình đã train trên một tập.")
     parser.add_argument("--config", required=True)
@@ -443,6 +737,11 @@ def main() -> None:
         action="store_true",
         help="đánh giá trên dev gốc + bộ dev nhiễu (D-027), dùng để chọn cho B/C/D",
     )
+    parser.add_argument(
+        "--normalize",
+        choices=NORMALIZE_VARIANTS,
+        help="cấu hình B (D-028): chuẩn hóa trước mô hình A đóng băng; chỉ dùng với --noisy-dev",
+    )
     parser.add_argument("--seed", type=int, help="đánh giá mô hình <tên>_s<seed>")
     parser.add_argument(
         "--summarize-seeds",
@@ -454,7 +753,16 @@ def main() -> None:
     args = parser.parse_args()
     if args.noisy_test + args.noisy_dev + bool(args.split) != 1:
         parser.error("chọn đúng một trong --split, --noisy-test hoặc --noisy-dev")
+    if args.normalize and not args.noisy_dev:
+        parser.error("--normalize chỉ dùng với --noisy-dev (D-028: chưa chạy B trên test)")
     noisy_split = "test" if args.noisy_test else "dev" if args.noisy_dev else None
+    if args.normalize:
+        if args.summarize_seeds:
+            name = load_config(args.config)["name"]
+            summarize_config_b_seeds(name, args.summarize_seeds, args.normalize)
+            return
+        evaluate_config_b(args.config, args.normalize, seed=args.seed)
+        return
     if noisy_split:
         if args.summarize_seeds:
             name = load_config(args.config)["name"]
