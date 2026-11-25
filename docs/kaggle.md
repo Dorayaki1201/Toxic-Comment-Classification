@@ -224,3 +224,50 @@ run("zip -qr noisy_dev_reports.zip reports/visobert_balanced* && ls -lh noisy_de
 ```
 
 Tải về `noisy_dev_reports.zip` (tab Output, hoặc mở thư mục `/kaggle/working/repo` ở cột phải), giải nén đè lên thư mục gốc của repo ở máy, rồi `git status`: chỉ được có file **mới** `noisy_dev_*` trong `reports/visobert_balanced_s4x/` và `reports/visobert_balanced/`; file cũ không được đổi.
+
+## 7. Cấu hình B với ViSoBERT trên bộ dev nhiễu (D-028), không train lại
+
+Chỉ suy luận, giống mục 6: cùng 3 mô hình từ output version `D-026 …`, mỗi bộ đoán hai lần (thô = A, đã chuẩn hóa = B) cho 2 biến thể `rules` và `full`. Chạy phiên thường, không cần Save Version. Trước đó: nhánh `feat/config-b` đã được push; notebook có Accelerator **GPU T4**, Internet bật; Input giống mục 6 (dataset `vihsd` + output version `D-026 …`).
+
+Ô 2 và Ô 3 **giống hệt mục 6** (dữ liệu, mô hình, test tokenizer, tạo bộ dev nhiễu và so manifest). Chỉ Ô 1 (tên nhánh) và Ô 4 khác.
+
+```python
+# Ô 1: hàm chạy lệnh (dừng nếu lỗi) + lấy code + ghi môi trường (torch có cả bản build CUDA, D-027)
+import os, subprocess
+
+
+def run(cmd):
+    print(f"$ {cmd}", flush=True)
+    subprocess.run(cmd, shell=True, check=True, executable="/bin/bash")
+
+
+run(
+    "git clone --branch feat/config-b https://github.com/Dorayaki1201/Toxic-Comment-Classification.git repo"
+)
+os.chdir("repo")
+run("git log --oneline -1")
+run('pip install -q "transformers==4.57.6" "accelerate==1.15.0" "sentencepiece==0.2.2"')
+run(
+    'python -c "import torch, transformers; print(torch.__version__, transformers.__version__, torch.cuda.get_device_name(0))" | tee reports/noisy_dev/kaggle_env_config_b.txt'
+)
+```
+
+```python
+# Ô 4: B trên dev nhiễu, 2 biến thể x 3 seed, rồi gộp từng biến thể.
+# Tự dừng nếu hash normalize.py / teencode.tsv khác D-028.
+# Cổng A: a_matches_committed_predictions.total_differing. Khác 0 thì KHÔNG chạy lại (D-026):
+# lợi ích B − A vẫn hợp lệ vì A và B được đoán trong cùng một lần chạy.
+for v in ("rules", "full"):
+    for s in (42, 43, 44):
+        run(
+            f"CUDA_VISIBLE_DEVICES=0 python -m src.evaluate --config configs/visobert_balanced.yaml --noisy-dev --normalize {v} --seed {s}"
+        )
+    run(
+        f"python -m src.evaluate --config configs/visobert_balanced.yaml --noisy-dev --normalize {v} --summarize-seeds 42 43 44"
+    )
+run(
+    "zip -qr config_b_reports.zip reports/visobert_balanced*/noisy_dev_b_* reports/noisy_dev/kaggle_env_config_b.txt && ls -lh config_b_reports.zip"
+)
+```
+
+Tải về `config_b_reports.zip`, giải nén đè lên thư mục gốc của repo ở máy, rồi `git status`: chỉ được có file **mới** (`noisy_dev_b_*` trong `reports/visobert_balanced_s4x/` và `reports/visobert_balanced/`, cộng `kaggle_env_config_b.txt`); không file cũ nào được đổi.
