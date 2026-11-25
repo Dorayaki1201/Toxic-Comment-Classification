@@ -37,12 +37,12 @@ Sơ đồ là **kế hoạch** đầy đủ. Khối nào đã có thật xem b�
 | `src/utils.py` | `set_seed`, `load_config`, `get_logger` | ✅ xong | `tests/test_utils.py` |
 | `src/data.py` | nạp ViHSD, kiểm tra định dạng, xử lý dòng lỗi | ✅ xong | `tests/test_data.py` |
 | `src/keywords.py` | token/bigram đặc trưng theo nhãn bằng log-odds (✅, kết quả: `data/README.md` mục 7); ứng viên từ điển teencode (✅ D-022) | ✅ xong | `tests/test_keywords.py` |
-| `src/normalize.py` | lớp luật: số thay chữ, ký tự chèn, ký tự kéo dài (✅ 3a, D-021); từ điển teencode (✅ 3b, D-022, precision 0.98 trên train); nối vào train/evaluate (⬜ 3c) | 🟡 | `tests/test_normalize.py` |
+| `src/normalize.py` | lớp luật: số thay chữ, ký tự chèn, ký tự kéo dài (✅ 3a, D-021); từ điển teencode (✅ 3b, D-022, precision 0.98 trên train); nối vào evaluate làm cấu hình B (✅ 3c, D-028, chọn `rules`: `reports/noisy_dev/config_b.md`) | ✅ xong | `tests/test_normalize.py` |
 | `src/noise.py` | 5 biến đổi theo ký tự, mức độ + seed (✅ D-023); viết tắt theo bảng từ ViLexNorm train (✅ D-024); bộ test nhiễu (✅ 9 bộ + `nfc_only`, D-025) | ✅ xong | `tests/test_noise.py` |
 | `src/noisy_dev.py` | bộ dev nhiễu từ ViHSD dev, seed 2611, dùng lại hàm của `noise.py` (✅ D-027) | ✅ xong | `tests/test_noisy_dev.py` |
 | `src/models.py`, `src/train.py` | baseline TF-IDF + LR (✅, kết quả: `reports/baseline_tfidf.md`); lưu/nạp mọi loại mô hình theo `type` (✅) | 🟡 | `tests/test_models.py` |
 | `src/transformer.py` | fine-tune ViSoBERT (✅ `visobert_balanced`, test 0.694 ± 0.004 qua 3 seed: `reports/transformer_visobert.md`); PhoBERT (⏸ hoãn, D-020) | 🟡 | `tests/test_transformer.py` |
-| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu (✅ D-026, kết quả cấu hình A: `reports/noisy_test/config_a.md`); dev nhiễu (✅ D-027, `--noisy-dev`, mốc cấu hình A: `reports/noisy_dev/config_a.md`); bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
+| `src/evaluate.py` | macro-F1, F1 từng lớp, confusion matrix, phần seen/unseen (✅); test nhiễu (✅ D-026, kết quả cấu hình A: `reports/noisy_test/config_a.md`); dev nhiễu (✅ D-027, `--noisy-dev`, mốc cấu hình A: `reports/noisy_dev/config_a.md`); cấu hình B trên dev nhiễu (✅ D-028, `--normalize`); bias, cross-dataset (⬜) | 🟡 | `tests/test_evaluate.py` |
 | `src/moderation.py` | logic xử lý sau phân loại | ⬜ tuần 7 | |
 | `app/app.py` | Gradio demo | ⬜ tuần 7 | |
 
@@ -127,7 +127,7 @@ python -m src.normalize --lexicon --samples 100 --seed 2027  # đo thêm từ đ
 ```
 
 - Các hàm chuẩn hóa là hàm thuần; chỉ `load_lexicon` đọc file. Từ điển được truyền vào dưới dạng `dict`, nên test dùng từ điển nhỏ viết trong code (D-006).
-- Chưa được gọi trong train/evaluate (phần 3c). Khi làm cấu hình B phải gọi `normalize(text, load_lexicon())`.
+- Được gọi trong `evaluate.py` cho cấu hình B (D-028): biến thể `rules` = `normalize(text)`, `full` = `normalize(text, load_lexicon())`. Đã chọn `rules`. Chưa dùng trong train. **Đóng băng**: hash ghi trong D-028, `evaluate.py` dừng nếu file bị sửa.
 
 ### `src/noise.py` (tuần 4, D-023)
 
@@ -202,6 +202,23 @@ python -m src.evaluate --config X --noisy-dev --summarize-seeds 42 43 44  # -> n
 ```
 
 - **Đọc:** CSV ở `data/noisy/vihsd_dev/`, dev gốc, train (chỉ để tính seen). Không đọc test.
+
+**Cấu hình B trên bộ dev nhiễu (D-028):** chuẩn hóa rồi đưa vào mô hình A đóng băng; A và B đoán trong cùng một lần chạy.
+
+```
+check_frozen_files(expected)                 # hash normalize.py / teencode.tsv khác D-028 -> ValueError
+make_normalizer(variant) -> Callable         # "rules": normalize; "full": normalize + từ điển
+normalize_stats(raw, normalized, normalized_original, changed) -> dict  # % câu đổi, % khôi phục
+paired_gain(a, b) -> dict                    # B − A trên toàn bộ và trên câu bị đổi
+compare_with_committed_predictions(path, predictions) -> dict  # cổng: A lần này so với A đã commit
+evaluate_config_b(config_path, variant, seed, split="dev")    # split khác "dev" -> ValueError
+summarize_config_b_seeds(name, seeds, variant)               # lợi ích tính trong từng seed rồi mới gộp
+python -m src.evaluate --config X --noisy-dev --normalize rules [--seed S]  # -> noisy_dev_b_rules_metrics.json + _predictions.csv
+python -m src.evaluate --config X --noisy-dev --normalize rules --summarize-seeds 42 43 44  # -> noisy_dev_b_rules_summary.json
+```
+
+- **Đọc:** như dev nhiễu, cộng `resources/teencode.tsv` (biến thể `full`). `--normalize` chỉ đi với `--noisy-dev`: chưa có đường chạy B trên test (sẽ thêm ở tuần 6, chạy một lần).
+- **Ghi:** file riêng `noisy_dev_b_<biến thể>_*`, không ghi đè file của A. File dự đoán có cột `a_<bộ>` và `b_<bộ>` (nhãn số, không có văn bản).
 - Tên file và khóa theo tập: `noisy_<split>_metrics.json`, `original_matches_committed_<split>`. Với `split="test"` kết quả giữ nguyên từng byte như trước khi thêm dev (đã kiểm bằng `git diff --exit-code reports/` sau khi chạy lại baseline, 18/11/2026).
 
 ## 4. Ranh giới dữ liệu (chống rò rỉ)
@@ -217,6 +234,7 @@ python -m src.evaluate --config X --noisy-dev --summarize-seeds 42 43 44  # -> n
 | Chọn `max_length` | train (phân bố số token) | dev, test |
 | Tạo bộ test nhiễu | test (chỉ để đánh giá), seed 1105 (D-025) | chỉnh `noise.py` sau khi đã tạo bộ; seed 1105 cho cấu hình D |
 | Tạo bộ dev nhiễu, chọn cho B/C/D | dev, seed 2611 (D-027) | bộ test nhiễu; seed 1105 hay 2611 cho tăng cường D (D giữ chỗ 3907) |
+| Chọn biến thể cấu hình B | dev nhiễu, quy tắc ghi trước (D-028) | test nhiễu; sửa `normalize.py`/`teencode.tsv` theo kết quả dev |
 | Đo mức tụt trên bộ test nhiễu | mô hình đã đóng băng (D-026) | chỉnh mô hình, `normalize.py`, nhiễu của D hay ngưỡng theo kết quả |
 | Báo cáo kết quả cuối | test, chạy một lần | |
 

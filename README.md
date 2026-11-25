@@ -6,7 +6,7 @@ Hệ thống phân loại bình luận tiếng Việt thành 3 nhãn `CLEAN` / `
 
 ## Trạng thái
 
-🚧 Đang phát triển. Đã xong: baseline, ViSoBERT, chuẩn hóa bằng luật và từ điển teencode (chưa nối vào huấn luyện). Tiếp theo: sinh nhiễu và bộ test nhiễu (tuần 4).
+🚧 Đang phát triển. Đã xong: baseline, ViSoBERT, chuẩn hóa bằng luật và từ điển teencode, sinh nhiễu, bộ test nhiễu và dev nhiễu, cấu hình B (chọn trên dev nhiễu). Tiếp theo: cấu hình C (seq2seq) và D (huấn luyện đối kháng).
 
 ## Chuẩn hóa teencode (cấu hình B)
 
@@ -16,6 +16,8 @@ Hai lớp, đều chỉ xây và đo trên tập train:
 - **Từ điển teencode/viết tắt** ([resources/teencode.tsv](resources/teencode.tsv)): 83 mục, chọn từ 167 ứng viên bằng cách đọc 10 ngữ cảnh mỗi ứng viên và chỉ giữ token có ít nhất 9/10 ngữ cảnh cùng nghĩa. Đổi 23.6% câu train; precision **0.98** (Wilson 95%: 0.93–0.99) trên 100 lần thay lấy ngẫu nhiên, đo trên mẫu khác với mẫu dùng để chọn.
 
 Nguyên tắc: thà bỏ sót còn hơn sửa sai, vì thay sai làm đổi nghĩa câu. Quy trình và hạn chế: [docs/decisions.md](docs/decisions.md) (D-021, D-022).
+
+**Cấu hình B** đặt chuẩn hóa trước mô hình đã train, không train lại. Hai biến thể được so trên bộ dev nhiễu theo quy tắc chọn ghi trước khi chạy (D-028), và **chỉ lớp luật** được chọn. Từ điển làm ViSoBERT kém đi trên dev sạch, vì mô hình được train trên văn bản thô. Với ViSoBERT ở mức nhiễu vừa, lớp luật lấy lại 44% điểm bị mất (macro-F1 dev 0.600 → 0.654, 3 seed). Chi tiết: [reports/noisy_dev/config_b.md](reports/noisy_dev/config_b.md). Kết quả trên test nhiễu: TODO (tuần 6).
 
 ## Kết quả
 

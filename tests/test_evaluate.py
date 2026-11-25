@@ -9,20 +9,28 @@ import yaml
 
 from src.data import LABEL_COL, TEXT_COL
 from src.evaluate import (
+    FROZEN_FOR_CONFIG_B,
+    check_frozen_files,
     check_noisy_set,
     committed_macro_f1,
+    compare_with_committed_predictions,
     compute_metrics,
+    evaluate_config_b,
     evaluate_noisy,
     evaluate_saved_model,
     find_seen,
     load_noisy_set,
+    make_normalizer,
     noisy_set_metrics,
+    normalize_stats,
     overlap_key,
     prediction_flip_rate,
     reference_set_name,
     save_metrics,
     sha256_file,
+    sha256_lf,
     subset_metrics,
+    summarize_config_b_seeds,
     summarize_noisy_seeds,
     summarize_seeds,
 )
@@ -435,3 +443,213 @@ def test_summarize_noisy_seeds_rejects_mixed_reference_sets(tmp_path):
     write_noisy_report(tmp_path, "toy", 2, {"original": (0.7, 0.0)}, reference="original")
     with pytest.raises(ValueError, match="tham chiếu"):
         summarize_noisy_seeds("toy", [1, 2], reports_dir=tmp_path)
+
+
+# --- Cấu hình B (D-028) ---
+
+
+def test_sha256_lf_ignores_line_endings_and_frozen_check_detects_edits(tmp_path):
+    (tmp_path / "lf.txt").write_bytes(b"a\nb\n")
+    (tmp_path / "crlf.txt").write_bytes(b"a\r\nb\r\n")
+    assert sha256_lf(tmp_path / "lf.txt") == sha256_lf(tmp_path / "crlf.txt")
+    expected = {"crlf.txt": sha256_lf(tmp_path / "lf.txt")}
+    check_frozen_files(expected, root=tmp_path)  # không lỗi
+    (tmp_path / "crlf.txt").write_bytes(b"a\r\nc\r\n")
+    with pytest.raises(ValueError, match="crlf.txt"):
+        check_frozen_files(expected, root=tmp_path)
+
+
+def test_repo_normalize_files_match_hashes_recorded_in_d028():
+    # Bẫy: sửa normalize.py hoặc teencode.tsv là test này hỏng, vì B phải đo đúng bản đã ghi.
+    check_frozen_files(FROZEN_FOR_CONFIG_B)
+
+
+def test_make_normalizer_rules_skips_lexicon_and_full_uses_it():
+    assert make_normalizer("rules")("ko n.g.u") == "ko ngu"
+    assert make_normalizer("full")("ko n.g.u") == "không ngu"
+    with pytest.raises(ValueError, match="Biến thể"):
+        make_normalizer("seq2seq")
+
+
+def test_normalize_stats_match_hand_calculation():
+    raw = pd.Series(["c.h.ó", "mèo  ", "cho"])
+    normalized = pd.Series(["chó", "mèo", "cho"])
+    normalized_original = pd.Series(["chó", "mèo", "chó"])
+    stats = normalize_stats(raw, normalized, normalized_original, np.array([True, False, True]))
+    # Chỉ câu 0 bị luật đổi ("mèo  " chỉ khác khoảng trắng, không tính).
+    assert stats["normalize_changed_rate"] == pytest.approx(1 / 3)
+    assert stats["recovered_rate"] == pytest.approx(2 / 3)
+    # Trong 2 câu bị nhiễu đổi, chỉ câu 0 được khôi phục; câu 2 mất dấu thì luật không gỡ được.
+    assert stats["recovered_rate_changed_rows"] == pytest.approx(1 / 2)
+
+
+def make_config_b_project(tmp_path):
+    """Baseline tí hon + dev có câu NFD + 3 bộ dev nhiễu: chèn ký tự (luật gỡ được), bỏ dấu
+    (luật không gỡ được), nfc_only."""
+    config_path, _, _, _ = make_noisy_project(tmp_path)
+    labels = [1, 0, 2, 0, 1]
+    dev_texts = ["chó chạy nhanh", "mèo ngủ ngon", "cá to", unicodedata.normalize("NFD", "mèo")]
+    dev = pd.DataFrame({TEXT_COL: [*dev_texts, "chó lười"], LABEL_COL: labels})
+    dev.to_csv(tmp_path / "data" / "dev.csv", index=False)
+
+    noisy_dir = tmp_path / "noisy_dev_b"
+    noisy_dir.mkdir()
+    inserted = toy_noisy(
+        ["c.h.ó chạy nhanh", "mèo ngủ ngon", "cá to", "mèo", "c.h.ó lười"],
+        labels,
+        [True, False, False, False, True],
+    )
+    frames = {
+        "insert_chars_medium": inserted,
+        "all_heavy": build_noisy_set(dev, NoisySpec("all_heavy", ("remove_diacritics",), 1.0), 2),
+        "nfc_only": build_noisy_set(dev, NFC_ONLY, seed=2),
+    }
+    sets = {
+        set_name: {"sha256": write_noisy_csv(noisy_dir / f"{set_name}.csv", df)}
+        for set_name, df in frames.items()
+    }
+    manifest_path = tmp_path / "manifest_dev_b.json"
+    manifest_path.write_text(json.dumps({"seed": 2, "inputs": {}, "sets": sets}), "utf-8")
+    noise_cfg = {"dev_sets": {"out_dir": str(noisy_dir), "manifest": str(manifest_path)}}
+    noise_cfg_path = tmp_path / "noise_dev_b.yaml"
+    noise_cfg_path.write_text(yaml.safe_dump(noise_cfg), encoding="utf-8")
+    return config_path, noise_cfg_path, manifest_path, noisy_dir
+
+
+def run_config_b(tmp_path, config_path, noise_cfg_path, variant="rules", split="dev"):
+    return evaluate_config_b(
+        config_path,
+        variant,
+        models_dir=tmp_path / "models",
+        reports_dir=tmp_path / "reports",
+        noise_config_path=noise_cfg_path,
+        split=split,
+    )
+
+
+def test_config_b_equals_a_where_normalize_changes_nothing(tmp_path):
+    config_path, noise_cfg_path, _, _ = make_config_b_project(tmp_path)
+    report = run_config_b(tmp_path, config_path, noise_cfg_path)
+
+    assert report["decision"] == "D-028" and report["variant"] == "rules"
+    assert report["reference_set_a"] == "original"  # baseline tự NFC
+    # Dev gốc không có gì để luật sửa, bộ bỏ dấu luật không gỡ được: B phải đoán y như A.
+    preds = pd.read_csv(tmp_path / "reports" / "toy" / "noisy_dev_b_rules_predictions.csv")
+    for set_name in ("original", "nfc_only", "all_heavy"):
+        assert preds[f"b_{set_name}"].tolist() == preds[f"a_{set_name}"].tolist()
+        assert report["sets"][set_name]["paired"]["gain_macro_f1"] == 0.0
+    assert report["clean_cost_macro_f1"] == 0.0
+    assert TEXT_COL not in preds.columns
+    # Chưa chạy A (--noisy-dev) nên không có file để đối chiếu; B không ghi file nào của A.
+    assert report["a_matches_committed_predictions"] == {"available": False}
+    out = tmp_path / "reports" / "toy"
+    assert (out / "noisy_dev_b_rules_metrics.json").exists()
+    assert not (out / "noisy_dev_metrics.json").exists()
+    assert not (out / "noisy_dev_predictions.csv").exists()
+
+
+def test_config_b_recovers_inserted_chars_and_pairs_gain(tmp_path):
+    config_path, noise_cfg_path, _, _ = make_config_b_project(tmp_path)
+    report = run_config_b(tmp_path, config_path, noise_cfg_path)
+    inserted = report["sets"]["insert_chars_medium"]
+
+    assert inserted["normalize"]["recovered_rate"] == 1.0
+    assert inserted["normalize"]["recovered_rate_changed_rows"] == 1.0
+    # Khôi phục hoàn toàn -> B đoán y như trên dev gốc đã chuẩn hóa, không tụt.
+    preds = pd.read_csv(tmp_path / "reports" / "toy" / "noisy_dev_b_rules_predictions.csv")
+    assert preds["b_insert_chars_medium"].tolist() == preds["b_original"].tolist()
+    assert inserted["b"]["drop_macro_f1"] == 0.0
+    assert inserted["paired"]["gain_macro_f1"] == pytest.approx(
+        inserted["b"]["macro_f1"] - inserted["a"]["macro_f1"]
+    )
+    assert "gain_changed_rows_macro_f1" in inserted["paired"]
+
+
+def test_config_b_refuses_test_split(tmp_path):
+    config_path, noise_cfg_path, _, _ = make_config_b_project(tmp_path)
+    with pytest.raises(ValueError, match="D-028"):
+        run_config_b(tmp_path, config_path, noise_cfg_path, split="test")
+
+
+def test_config_b_stops_when_nfc_only_differs_after_normalize(tmp_path):
+    config_path, noise_cfg_path, manifest_path, noisy_dir = make_config_b_project(tmp_path)
+    path = noisy_dir / "nfc_only.csv"
+    df = load_noisy_set(path)
+    df.loc[1, TEXT_COL] = "mèo ngủ"
+    manifest = json.loads(manifest_path.read_text("utf-8"))
+    manifest["sets"]["nfc_only"]["sha256"] = write_noisy_csv(path, df)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="nfc_only"):
+        run_config_b(tmp_path, config_path, noise_cfg_path)
+
+
+def test_config_b_counts_rows_where_a_differs_from_committed_predictions(tmp_path):
+    config_path, noise_cfg_path, _, _ = make_config_b_project(tmp_path)
+    evaluate_noisy(
+        config_path,
+        models_dir=tmp_path / "models",
+        reports_dir=tmp_path / "reports",
+        noise_config_path=noise_cfg_path,
+        split="dev",
+    )
+    gate = run_config_b(tmp_path, config_path, noise_cfg_path)["a_matches_committed_predictions"]
+    assert gate["available"] and gate["total_differing"] == 0 and gate["missing_sets"] == []
+
+    path = tmp_path / "reports" / "toy" / "noisy_dev_predictions.csv"
+    committed = pd.read_csv(path)
+    committed.loc[0, "all_heavy"] = (committed.loc[0, "all_heavy"] + 1) % 3
+    committed.to_csv(path, index=False)
+    gate = compare_with_committed_predictions(path, {"all_heavy": np.zeros(5), "x": np.zeros(5)})
+    assert gate["missing_sets"] == ["x"]
+    gate = run_config_b(tmp_path, config_path, noise_cfg_path)["a_matches_committed_predictions"]
+    assert gate["rows_differing"]["all_heavy"] == 1 and gate["total_differing"] == 1
+
+
+def write_config_b_report(reports_dir, seed, a_score, gain, a_drop, variant="rules"):
+    def side(score, drop):
+        per_class = {label: {"f1": score} for label in ["CLEAN", "OFFENSIVE", "HATE"]}
+        return {"macro_f1": score, "drop_macro_f1": drop, "per_class": per_class}
+
+    report = {
+        "variant": variant,
+        "reference_set_a": "nfc_only",
+        "frozen_inputs": {"src/normalize.py": "abc"},
+        "clean_cost_macro_f1": 0.004,
+        "a_matches_committed_predictions": {"available": True, "total_differing": 0},
+        "sets": {
+            "all_medium": {
+                "a": side(a_score, a_drop),
+                "b": side(a_score + gain, a_drop - gain),
+                "paired": {"gain_macro_f1": gain},
+                "normalize": {"recovered_rate": 0.3},
+            }
+        },
+    }
+    save_metrics(report, reports_dir / f"toy_s{seed}" / f"noisy_dev_b_{variant}_metrics.json")
+
+
+def test_summarize_config_b_pairs_gain_within_each_seed(tmp_path):
+    # A dao động giữa các seed nhưng B luôn hơn A đúng 0.02: std của lợi ích = 0.
+    for seed, score in zip([1, 2, 3], [0.58, 0.60, 0.62], strict=True):
+        write_config_b_report(tmp_path, seed, score, gain=0.02, a_drop=0.10)
+    summary = summarize_config_b_seeds("toy", [1, 2, 3], "rules", reports_dir=tmp_path)
+    medium = summary["sets"]["all_medium"]
+    assert medium["b_macro_f1"]["std"] == pytest.approx(0.02)
+    assert medium["gain_macro_f1"]["mean"] == pytest.approx(0.02)
+    assert medium["gain_macro_f1"]["std"] == pytest.approx(0.0)
+    assert medium["positive_gain_seeds"] == 3
+    assert medium["recovered_share"] == pytest.approx(0.2)  # 0.02 / 0.10
+    assert summary["clean_cost_macro_f1"]["mean"] == pytest.approx(0.004)
+    assert summary["a_total_differing_from_committed"] == [0, 0, 0]
+    assert (tmp_path / "toy" / "noisy_dev_b_rules_summary.json").exists()
+
+
+def test_summarize_config_b_rejects_mixed_variants(tmp_path):
+    write_config_b_report(tmp_path, 1, 0.6, gain=0.01, a_drop=0.1, variant="rules")
+    write_config_b_report(tmp_path, 2, 0.6, gain=0.01, a_drop=0.1, variant="full")
+    # Seed 2 ghi file tên "full": đổi tên để giả lập file sai nội dung.
+    (tmp_path / "toy_s2" / "noisy_dev_b_full_metrics.json").rename(
+        tmp_path / "toy_s2" / "noisy_dev_b_rules_metrics.json"
+    )
+    with pytest.raises(ValueError, match="variant"):
+        summarize_config_b_seeds("toy", [1, 2], "rules", reports_dir=tmp_path)
