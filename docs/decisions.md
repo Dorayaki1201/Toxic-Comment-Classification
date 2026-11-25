@@ -353,4 +353,10 @@ Mỗi quyết định ghi: **bối cảnh** (vấn đề là gì), **quyết đ�
 - **Lý do:** quy tắc chọn ghi trước, chỉ dựa trên dev, và luôn cho đúng một đáp án. Hai biến thể tách được tác động của luật và của từ điển.
 - **Đánh đổi / rủi ro:** tính lại A làm thời gian chạy trên Kaggle tăng khoảng gấp đôi. Hai lần thử trên dev nhiễu có thể quá khớp dev nhẹ. Nếu lệch train/suy luận làm cả hai biến thể tốn hơn 0.01 trên dev sạch, mới cân nhắc **B-retrain** (train lại trên train đã chuẩn hóa) như một quyết định mới.
 - **Phương án bỏ:** chỉ đo `full` (không tách được luật và từ điển); chọn theo trung bình 9 bộ (các bộ có % từ đổi khác nhau, 8–45%); mỗi mô hình một biến thể (B thành hai thứ); báo cả hai rồi để tuần 6 mới chọn (nguy cơ chọn sau khi thấy test); so với A đã commit thay vì tính lại (lẫn hiệu ứng môi trường).
-- **Kết quả:** TODO (sau khi chạy, `reports/noisy_dev/config_b.md`).
+- **Kết quả (25/11/2026, `reports/noisy_dev/config_b.md`):**
+  - Mọi lần chạy qua 3 cổng: hash đóng băng khớp; A đoán lại khớp `noisy_dev_predictions.csv` 0 câu lệch (Kaggle cùng build cu130 với D-027); `nfc_only` và `original` sau chuẩn hóa cho dự đoán giống nhau.
+  - ViSoBERT ở `all_medium`: `rules` 0.6536 ± 0.0118 (lợi ích +0.0536 ± 0.0030, 3/3 seed dương), `full` 0.6511 ± 0.0141 (+0.0511 ± 0.0024). Chi phí trên dev sạch: `rules` +0.0010 ± 0.0020, `full` +0.0097 ± 0.0060.
+  - **Áp quy tắc:** chênh 0.0025 < 0.01 nên **chọn `rules`**. Chi phí 0.0010 ≤ 0.01 nên không có đánh đổi. B-retrain không kích hoạt. **Cấu hình B = `normalize(text)` (chỉ lớp luật) + mô hình A đóng băng.**
+  - `rules` lấp 44% mức tụt của ViSoBERT ở `all_medium` (0.054 / 0.123). Lợi ích nằm ở `insert_chars` (+0.075), `elongate` (+0.067), `substitute_digits` (+0.020); bỏ dấu, viết tắt, teencode ≈ 0. Baseline `rules`: +0.019 ở `all_medium`.
+  - **So với dự đoán:** sai ở "B khó thắng lớn" (lợi ích lớn hơn dự đoán). Đúng ở chỗ lợi ích tập trung vào ba bộ nhiễu ký tự, bỏ dấu và teencode nằm ngoài khả năng luật, từ điển làm hại ViSoBERT trên dev sạch (−0.011, 0/3 seed dương). Với `elongate`, 1218/1264 câu không khôi phục được có ký tự lặp đúng 2 lần, đúng là dạng D-021 cố ý bỏ qua.
+  - Bước tiếp: chạy `rules` trên test nhiễu đúng một lần ở tuần 6.

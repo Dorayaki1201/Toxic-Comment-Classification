@@ -178,6 +178,10 @@ python -m src.noisy_dev --check   # tái lập: so hash với reports/noisy_dev/
 python -m src.evaluate --config configs/tfidf_lr_wordchar_balanced.yaml --noisy-dev
 python -m src.evaluate --config configs/visobert_balanced.yaml --noisy-dev --summarize-seeds 42 43 44
 # ViSoBERT: trên Kaggle theo docs/kaggle.md mục 5 (--seed 42/43/44, rồi --summarize-seeds 42 43 44)
+# Cấu hình B trên dev nhiễu (D-028): normalize + mô hình A đóng băng, A và B đoán cùng lần; đã chọn `rules`
+python -m src.evaluate --config configs/tfidf_lr_wordchar_balanced.yaml --noisy-dev --normalize rules
+python -m src.evaluate --config configs/visobert_balanced.yaml --noisy-dev --normalize rules --summarize-seeds 42 43 44
+# ViSoBERT B: trên Kaggle theo docs/kaggle.md mục 7; --normalize không dùng được với test (chạy một lần ở tuần 6)
 
 # Chạy demo
 python app/app.py
@@ -241,6 +245,7 @@ python app/app.py
 
 **Tuần 5: Cấu hình C và D**
 - [x] Bộ dev nhiễu làm mốc chọn cho B/C/D (seed 2611, D-027; cấu hình A trên dev nhiễu: ViSoBERT tụt 0.123 ở `all_medium`, `reports/noisy_dev/config_a.md`)
+- [x] Cấu hình B trên dev nhiễu (D-028): chọn `rules` theo quy tắc ghi trước; ViSoBERT `all_medium` +0.054 ± 0.003 so với A (lấp 44% mức tụt), chi phí dev sạch 0.001 (`reports/noisy_dev/config_b.md`)
 - [ ] Seq2seq chuẩn hóa (ViT5/BARTpho) trên cặp nhiễu-chuẩn sinh tự động
 - [ ] Huấn luyện đối kháng (cấu hình D)
 
